@@ -1,0 +1,649 @@
+<title>Dustbowl '98 — Dirt Bike</title>
+
+<style>
+  :root {
+    --sand:   #e3be86;
+    --ochre:  #b4783c;
+    --dirt:   #5e4028;
+    --haze:   #f3a45c;
+    --amber:  #ffb020;
+    --alarm:  #e4453a;
+    --ink:    #0b0d10;
+    --panel:  rgba(11, 13, 16, 0.72);
+    --line:   rgba(227, 190, 134, 0.28);
+    --paper:  #ece5d8;
+    --display: "Haettenschweiler", "Arial Narrow Bold", "Franklin Gothic Condensed",
+               "Impact", "Oswald", system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", "Roboto Mono", Consolas, monospace;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #14161c;
+    color: var(--paper);
+    font-family: var(--mono);
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  body.touch { touch-action: none; }
+  canvas#scene { display: block; width: 100%; height: 100%; }
+
+  /* ------------------------------------------------------------- chrome */
+  .hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity .5s ease .1s;
+  }
+  body.playing .hud { opacity: 1; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(3px);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    padding: 10px 14px;
+  }
+  .label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: rgba(236, 229, 216, .5);
+    margin: 0 0 2px;
+  }
+  .num {
+    font-family: var(--display);
+    font-size: 30px;
+    line-height: .92;
+    letter-spacing: .01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--paper);
+  }
+
+  /* top-left: race data ------------------------------------------------ */
+  #race {
+    position: absolute;
+    top: 16px; left: 16px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(72px, auto));
+    gap: 4px 22px;
+  }
+  #race .num { font-size: 24px; }
+  #timeVal { color: var(--amber); }
+
+  /* top-right: map + score --------------------------------------------- */
+  #nav {
+    position: absolute;
+    top: 16px; right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  #mapbox { padding: 8px; line-height: 0; }
+  #minimap { display: block; }
+  #scorebox { text-align: right; min-width: 132px; }
+  #scoreVal { color: var(--amber); font-size: 34px; }
+  /* stunt score belongs to the stunt mode, not to a race */
+  body.mode-race #scorebox { display: none; }
+
+  /* bottom-left: speedo ------------------------------------------------- */
+  #speedo {
+    position: absolute;
+    bottom: 18px; left: 16px;
+    width: 168px; height: 118px;
+    display: grid;
+    place-items: center;
+  }
+  #speedo svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #speedArc {
+    stroke-dasharray: 236;
+    stroke-dashoffset: 236;
+    transition: stroke-dashoffset .08s linear;
+  }
+  #speedStack { text-align: center; transform: translateY(14px); }
+  #speedVal {
+    font-family: var(--display);
+    font-size: 58px;
+    line-height: .8;
+    font-variant-numeric: tabular-nums;
+    color: var(--paper);
+    text-shadow: 0 2px 12px rgba(0,0,0,.6);
+  }
+  #speedStack .label { margin-top: 4px; }
+
+  /* bottom-right: air meter + next cp ---------------------------------- */
+  #airbox {
+    position: absolute;
+    bottom: 18px; right: 16px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  #airTube {
+    width: 16px; height: 108px;
+    border: 1px solid var(--line);
+    background: rgba(11,13,16,.72);
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+  }
+  #airFill {
+    width: 100%; height: 0%;
+    background: linear-gradient(to top, var(--ochre), var(--amber));
+    transition: height .06s linear;
+  }
+  #airReadout { text-align: right; }
+  #airVal { color: var(--amber); }
+  #distVal { font-size: 22px; }
+  #airReadout > div + div { margin-top: 10px; }
+
+  /* stunt banner -------------------------------------------------------- */
+  #banner {
+    position: absolute;
+    top: 22%; left: 50%;
+    transform: translate(-50%, 8px) scale(.94);
+    text-align: center;
+    opacity: 0;
+    transition: opacity .18s ease, transform .18s cubic-bezier(.2,1.4,.4,1);
+  }
+  #banner.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  #banTitle {
+    font-family: var(--display);
+    font-size: clamp(38px, 7vw, 76px);
+    letter-spacing: .02em;
+    color: var(--amber);
+    text-shadow: 0 3px 0 rgba(94,64,40,.9), 0 10px 30px rgba(0,0,0,.5);
+    text-transform: uppercase;
+  }
+  #banSub {
+    font-size: 12px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: rgba(236,229,216,.8);
+    margin-top: 2px;
+  }
+  #banner.bad #banTitle { color: var(--alarm); }
+
+  /* airborne vignette --------------------------------------------------- */
+  #vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity .3s ease;
+    background: radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 42%, rgba(20,10,4,.55) 100%);
+  }
+  body.airborne #vignette { opacity: 1; }
+
+  /* ------------------------------------------------------- title screen */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 20px 16px;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(20,12,6,.25), rgba(10,8,6,.86) 70%);
+    /* opacity only — transitioning visibility makes it flip halfway through the
+       fade, so a tapped menu takes a third of a second to become usable */
+    transition: opacity .35s ease;
+  }
+  .overlay.gone,
+  .overlay:not(.show)#pause,
+  .overlay:not(.show)#results { opacity: 0; visibility: hidden; pointer-events: none; }
+  #pause.show, #results.show { opacity: 1; visibility: visible; pointer-events: auto; }
+
+  /* race results ------------------------------------------------------- */
+  .results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 16px 20px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 16px 0;
+    margin: 18px 0 0;
+  }
+  .bigstat .num { font-size: 30px; color: var(--amber); }
+  /* Haettenschweiler's exclamation mark has no visible gap between stem and
+     dot, so it renders identically to a capital I. Borrow one that does. */
+  .bang {
+    font-family: Impact, "Arial Black", system-ui, sans-serif;
+    margin-left: .06em;
+  }
+  #lapTable {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  #lapTable td { padding: 5px 0; border-bottom: 1px solid rgba(227,190,134,.14); }
+  #lapTable td:first-child {
+    color: rgba(236,229,216,.5);
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+  #lapTable td:last-child { text-align: right; color: var(--paper); }
+  #lapTable tr.best td:last-child { color: var(--amber); }
+  #lapTable tr.best td:last-child::after {
+    content: " BEST";
+    font-size: 9px;
+    letter-spacing: .18em;
+  }
+
+  #plate {
+    /* auto margins keep an over-tall plate centred without clipping its top */
+    margin: auto;
+    flex: 0 0 auto;
+    width: min(560px, 90vw);
+    background: rgba(11,13,16,.82);
+    border: 1px solid var(--line);
+    clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+    padding: 34px 34px 28px;
+    text-align: left;
+  }
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: .38em;
+    text-transform: uppercase;
+    color: var(--ochre);
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(52px, 11vw, 96px);
+    line-height: .82;
+    margin: 10px 0 6px;
+    letter-spacing: .01em;
+    text-transform: uppercase;
+    color: var(--sand);
+    text-shadow: 0 4px 0 var(--dirt), 0 14px 34px rgba(0,0,0,.6);
+    text-wrap: balance;
+  }
+  h1 em {
+    font-style: normal;
+    display: block;
+    color: var(--amber);
+  }
+  #plate p.blurb {
+    max-width: 46ch;
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(236,229,216,.72);
+    margin: 14px 0 22px;
+  }
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px 20px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 0;
+    margin-bottom: 22px;
+  }
+  .keys div { display: flex; align-items: center; gap: 9px; font-size: 11px; color: rgba(236,229,216,.72); }
+  kbd {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    background: rgba(227,190,134,.08);
+    color: var(--sand);
+    letter-spacing: .06em;
+    white-space: nowrap;
+  }
+  button {
+    font-family: var(--display);
+    font-size: 26px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--amber);
+    border: 0;
+    padding: 12px 34px;
+    cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    transition: background .15s ease, transform .12s ease;
+  }
+  button:hover { background: var(--sand); }
+  button:active { transform: translateY(2px); }
+  button:focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }
+  button.ghost {
+    background: transparent;
+    color: var(--sand);
+    border: 1px solid var(--line);
+    font-size: 18px;
+    padding: 10px 20px;
+  }
+  button.ghost:hover { background: rgba(227,190,134,.12); color: var(--paper); }
+
+  /* sound toggle stays clickable while the HUD itself ignores the pointer */
+  .chip {
+    pointer-events: auto;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: rgba(236,229,216,.72);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 7px 11px;
+    clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+  }
+  .chip:hover { color: var(--amber); background: rgba(11,13,16,.9); }
+  .chip #sndBtnState { color: var(--amber); }
+  .chip.readout { pointer-events: none; font-variant-numeric: tabular-nums; text-align: right; }
+  #perf.bad { color: var(--alarm); border-color: rgba(228,69,58,.5); }
+  .chiprow { display: flex; gap: 6px; }
+  /* the only way out of a race on a touchscreen — make it obvious and big
+     enough for a thumb */
+  .chip.strong {
+    color: var(--ink);
+    background: var(--amber);
+    border-color: var(--amber);
+    font-weight: 700;
+    padding: 8px 14px;
+  }
+  .chip.strong:hover { background: var(--sand); color: var(--ink); }
+  body.touch .chip { padding: 10px 14px; font-size: 10px; }
+  .startrow { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .hint { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: rgba(236,229,216,.45); }
+  .build { color: var(--ochre); margin-left: 8px; white-space: nowrap; }
+
+  #pause #plate { text-align: center; }
+  #pause h1 { font-size: clamp(40px, 8vw, 64px); }
+  #pause .startrow { justify-content: center; }
+
+  #loading {
+    position: fixed; inset: 0; z-index: 40;
+    display: grid; place-items: center;
+    background: #14161c;
+    font-size: 11px; letter-spacing: .3em; text-transform: uppercase;
+    color: var(--ochre);
+    transition: opacity .4s ease, visibility .4s;
+  }
+  #loading.gone { opacity: 0; visibility: hidden; }
+
+  /* ------------------------------------------------------ touch controls */
+  #touchpad, #rotate { display: none; }
+
+  body.touch.playing #touchpad {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  /* left half: a stick that appears wherever the thumb lands */
+  #stickZone {
+    pointer-events: auto;
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 46%;
+    touch-action: none;
+  }
+  #stickBase {
+    position: absolute;
+    width: 124px; height: 124px;
+    margin: -62px 0 0 -62px;
+    border: 1px solid rgba(227,190,134,.34);
+    border-radius: 50%;
+    background: rgba(11,13,16,.28);
+    opacity: 0;
+    transition: opacity .12s ease;
+  }
+  #stickBase.on { opacity: 1; }
+  #stickKnob {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 54px; height: 54px;
+    margin: 0;
+    border-radius: 50%;
+    background: rgba(255,176,32,.5);
+    border: 1px solid rgba(255,176,32,.85);
+    transform: translate(-50%,-50%);
+  }
+
+  /* right side: speed */
+  #pedals {
+    position: absolute;
+    right: max(18px, env(safe-area-inset-right));
+    bottom: max(18px, env(safe-area-inset-bottom));
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+  }
+  #pedals button {
+    pointer-events: auto;
+    touch-action: none;
+    width: 84px; height: 84px;
+    padding: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    background: rgba(11,13,16,.5);
+    border: 1px solid var(--line);
+    color: var(--sand);
+    clip-path: none;
+    border-radius: 50%;
+  }
+  #pedals button.on { background: rgba(255,176,32,.55); color: var(--ink); }
+  #tGas { width: 96px; height: 96px; font-size: 12px; }
+  /* auto-throttle hides the gas pedal — the bike drives itself */
+  body:not(.manual-throttle) #tGas { display: none; }
+
+  /* portrait nag */
+  body.touch #rotate {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    place-items: center;
+    text-align: center;
+    background: #14161c;
+  }
+  @media (orientation: portrait) {
+    body.touch #rotate { display: grid; }
+  }
+  #rotate h1 { font-size: clamp(38px, 12vw, 64px); }
+
+  /* keep the HUD clear of the Dynamic Island and home indicator */
+  body.touch #race   { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); }
+  body.touch #nav    { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+  body.touch #speedo { bottom: max(18px, env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); }
+  body.touch #airbox { bottom: max(110px, calc(env(safe-area-inset-bottom) + 104px)); right: max(16px, env(safe-area-inset-right)); }
+
+  /* On a phone held sideways there is no room for the map, and the bottom-left
+     corner belongs to the thumb — so the speedo moves to the dead space between
+     the two hands. Must come after the safe-area rules above: same specificity,
+     so source order decides. */
+  @media (max-height: 520px) {
+    #mapbox { display: none; }
+    body.touch #speedo {
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      width: 132px;
+      height: 92px;
+    }
+    body.touch #speedVal { font-size: 40px; }
+    body.touch #speedStack { transform: translateY(9px); }
+    body.touch #airbox { bottom: max(18px, env(safe-area-inset-bottom)); right: max(112px, calc(env(safe-area-inset-right) + 104px)); }
+    body.touch #airReadout { display: none; }
+    /* the callout has to clear the centred speedo on a short screen */
+    #banner { top: 10px; }
+    #banTitle { font-size: clamp(22px, 8vh, 42px); }
+    #banSub { font-size: 10px; }
+  }
+
+  /* short panels: the controls matter more than the flavour text */
+  @media (max-height: 660px) {
+    #plate { padding: 22px 24px 20px; }
+    h1 { font-size: clamp(32px, 8vh, 64px); margin: 6px 0 4px; }
+    #plate p.blurb { display: none; }
+    .keys { padding: 11px 0; margin-bottom: 15px; gap: 6px 18px; }
+    .startrow button { font-size: 20px; padding: 9px 24px; }
+    .startrow button.ghost { font-size: 15px; padding: 8px 16px; }
+  }
+
+  @media (max-width: 620px) {
+    #race .num { font-size: 18px; }
+    #scoreVal { font-size: 26px; }
+    #speedVal { font-size: 44px; }
+    #speedo { width: 130px; height: 94px; }
+    #mapbox { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #banner, #speedArc, #airFill { transition: none; }
+  }
+</style>
+
+<canvas id="scene"></canvas>
+
+<div id="vignette"></div>
+
+<div class="hud">
+  <div id="race" class="panel">
+    <div><p class="label">Lap time</p><div class="num" id="timeVal">0:00.00</div></div>
+    <div><p class="label">Best lap</p><div class="num" id="bestVal">—:——</div></div>
+    <div><p class="label">Lap done</p><div class="num" id="cpVal">0%</div></div>
+    <div><p class="label">Lap</p><div class="num" id="lapVal">1/3</div></div>
+  </div>
+
+  <div id="nav">
+    <div id="mapbox" class="panel"><canvas id="minimap"></canvas></div>
+    <div id="scorebox" class="panel">
+      <p class="label">Stunt score</p>
+      <div class="num" id="scoreVal">0</div>
+    </div>
+    <div id="perf" class="chip readout">— FPS</div>
+    <div class="chiprow">
+      <button id="sndBtn" class="chip" type="button">Sound <span id="sndBtnState">ON</span></button>
+      <button id="menuBtn" class="chip strong" type="button">Menu</button>
+    </div>
+  </div>
+
+  <div id="speedo">
+    <svg viewBox="0 0 168 118" aria-hidden="true">
+      <path d="M20 96 A 64 64 0 1 1 148 96" fill="none" stroke="rgba(11,13,16,.7)" stroke-width="12" stroke-linecap="butt"/>
+      <path d="M20 96 A 64 64 0 1 1 148 96" fill="none" stroke="rgba(227,190,134,.18)" stroke-width="12" stroke-linecap="butt"/>
+      <path id="speedArc" d="M20 96 A 64 64 0 1 1 148 96" fill="none" stroke="#ffb020" stroke-width="12" stroke-linecap="butt"/>
+    </svg>
+    <div id="speedStack">
+      <div id="speedVal">0</div>
+      <p class="label">mph</p>
+    </div>
+  </div>
+
+  <div id="airbox">
+    <div id="airTube"><div id="airFill"></div></div>
+    <div id="airReadout">
+      <div><p class="label">Air time</p><div class="num" id="airVal">0.00</div></div>
+      <div><p class="label">Surface</p><div class="num" id="distVal">ON</div></div>
+    </div>
+  </div>
+
+  <div id="banner">
+    <div id="banTitle">BIG AIR</div>
+    <div id="banSub"></div>
+  </div>
+</div>
+
+<div id="touchpad">
+  <div id="stickZone"></div>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="pedals">
+    <button id="tBrake" type="button">Brake</button>
+    <button id="tGas" type="button">Gas</button>
+  </div>
+</div>
+
+<div id="rotate">
+  <div>
+    <p class="eyebrow">Turn the phone</p>
+    <h1>Landscape</h1>
+    <p class="hint">This one wants the long way round</p>
+  </div>
+</div>
+
+<div class="overlay" id="title">
+  <div id="plate">
+    <p class="eyebrow">Open desert · 8 gates · one bike</p>
+    <h1>Dustbowl <em>'98</em></h1>
+    <p class="blurb">
+      Sunset in the bowl. Roll the throttle, aim for the lips, and keep the wheels
+      pointed downhill — land flat and the score keeps climbing, land sideways and
+      you eat sand.
+    </p>
+    <div class="keys">
+      <div><kbd>W</kbd><kbd>↑</kbd> Throttle</div>
+      <div><kbd>S</kbd><kbd>↓</kbd> Brake · nose up in air</div>
+      <div><kbd>A</kbd><kbd>D</kbd> Steer · whip in air</div>
+      <div><kbd>R</kbd> Reset to last gate</div>
+      <div><kbd>C</kbd> Camera <span id="camName">CHASE</span></div>
+      <div><kbd>M</kbd> Sound <span id="sndState">ON</span> · <kbd>P</kbd> Pause</div>
+      <div><kbd>Q</kbd> Quit · cuts the engine</div>
+    </div>
+    <div class="startrow">
+      <button id="startBtn" type="button">Drop in</button>
+      <button id="throttleBtn" class="ghost" type="button">Throttle: <span class="throttleState">AUTO</span></button>
+    </div>
+    <p class="hint" style="margin-top:14px">
+      Keyboard or touch · auto-throttle drives for you, you steer and brake
+      <span id="buildStamp" class="build"></span>
+    </p>
+  </div>
+</div>
+
+<div class="overlay" id="results">
+  <div id="plate">
+    <p class="eyebrow">Race complete · 3 laps</p>
+    <h1>Finished<span class="bang">!</span></h1>
+    <div class="results">
+      <div class="bigstat">
+        <p class="label">Race time</p>
+        <div class="num" id="rTotal">0:00.00</div>
+      </div>
+      <div class="bigstat">
+        <p class="label">Best lap</p>
+        <div class="num" id="rBest">0:00.00</div>
+      </div>
+    </div>
+    <table id="lapTable"><tbody id="lapRows"></tbody></table>
+    <div class="startrow">
+      <button id="againBtn" type="button">Race again</button>
+      <button id="resultsQuit" class="ghost" type="button">Back to title</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pause">
+  <div id="plate">
+    <p class="eyebrow">Engine idling</p>
+    <h1>Paused</h1>
+    <div class="startrow">
+      <button id="resumeBtn" type="button">Resume</button>
+      <button id="throttleBtn2" class="ghost" type="button">Throttle: <span class="throttleState">AUTO</span></button>
+      <button id="restartBtn" class="ghost" type="button">Restart run</button>
+      <button id="quitBtn" class="ghost" type="button">Quit · stop engine</button>
+    </div>
+  </div>
+</div>
+
+<div id="loading">Grading the terrain…</div>

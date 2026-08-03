@@ -1,0 +1,6 @@
+node_modules/
+
+# build outputs — regenerate with `npm run build`
+dist/
+dustbowl98.html
+dustbowl-app.zip

@@ -1,0 +1,13 @@
+{
+  "name": "dustbowl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Arcade dirt-bike riding over procedural desert. A tribute to the open-terrain motocross games of the late 90s.",
+  "scripts": {
+    "build": "node tools/build-app.js && node tools/build-artifact.js",
+    "build:app": "node tools/build-app.js",
+    "build:artifact": "node tools/build-artifact.js",
+    "icons": "node tools/make-icons.js",
+    "serve": "node tools/serve.js"
+  }
+}
