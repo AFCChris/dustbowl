@@ -51,7 +51,7 @@ function fbm(x, y, oct) {
 }
 
 /* ------------------------------------------------------------ constants */
-const BUILD = 'v0.9 · 1 Aug';   // shown on the title screen, so you can tell
+const BUILD = 'v0.10 · 3 Aug';  // shown on the title screen, so you can tell
                                  // at a glance whether a deploy actually landed
 /* Phones get a lighter build of the world. Decided once, up front, because the
    terrain mesh is baked at load. */
@@ -1367,10 +1367,14 @@ function onLand(normal) {
     G.score += pts * (1 + Math.min(G.combo, 5) * 0.15);
     G.totalAir += at;
     if (at > G.bigAir) G.bigAir = at;
-    let label = at > 2.6 ? 'MASSIVE AIR' : at > 1.6 ? 'BIG AIR' : at > 0.9 ? 'NICE AIR' : 'AIR';
-    if (flips >= 1) label = flips > 1 ? flips + 'x FLIP!' : (S.flipAccum > 0 ? 'FRONT FLIP!' : 'BACKFLIP!');
-    banner(label, at.toFixed(2) + 's  ·  +' + Math.round(pts * (1 + Math.min(G.combo, 5) * 0.15)) + (G.combo > 1 ? '  ·  x' + G.combo : ''));
-    chime(flips ? 880 : 620);
+    /* Keep scoring live underneath race mode so the stunt park can reuse it,
+       but do not surface air points or trick callouts during a race. */
+    if (!document.body.classList.contains('mode-race')) {
+      let label = at > 2.6 ? 'MASSIVE AIR' : at > 1.6 ? 'BIG AIR' : at > 0.9 ? 'NICE AIR' : 'AIR';
+      if (flips >= 1) label = flips > 1 ? flips + 'x FLIP!' : (S.flipAccum > 0 ? 'FRONT FLIP!' : 'BACKFLIP!');
+      banner(label, at.toFixed(2) + 's  ·  +' + Math.round(pts * (1 + Math.min(G.combo, 5) * 0.15)) + (G.combo > 1 ? '  ·  x' + G.combo : ''));
+      chime(flips ? 880 : 620);
+    }
   }
 
   // absorb the hit, scrub speed on a sloppy landing

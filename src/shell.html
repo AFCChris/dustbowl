@@ -145,6 +145,8 @@
   #airVal { color: var(--amber); }
   #distVal { font-size: 22px; }
   #airReadout > div + div { margin-top: 10px; }
+  /* Air scoring belongs to the planned stunt park, not the race. */
+  body.mode-race #airbox { display: none; }
 
   /* stunt banner -------------------------------------------------------- */
   #banner {
@@ -264,14 +266,15 @@
     color: var(--ochre);
   }
   h1 {
-    font-family: var(--display);
-    font-size: clamp(52px, 11vw, 96px);
-    line-height: .82;
-    margin: 10px 0 6px;
-    letter-spacing: .01em;
+    font-family: "Arial Black", "Franklin Gothic Heavy", system-ui, sans-serif;
+    font-size: clamp(42px, 8vw, 72px);
+    font-weight: 900;
+    line-height: .96;
+    margin: 12px 0 8px;
+    letter-spacing: .055em;
     text-transform: uppercase;
     color: var(--sand);
-    text-shadow: 0 4px 0 var(--dirt), 0 14px 34px rgba(0,0,0,.6);
+    text-shadow: 0 2px 0 var(--dirt), 0 10px 26px rgba(0,0,0,.5);
     text-wrap: balance;
   }
   h1 em {
@@ -365,7 +368,7 @@
   .build { color: var(--ochre); margin-left: 8px; white-space: nowrap; }
 
   #pause #plate { text-align: center; }
-  #pause h1 { font-size: clamp(40px, 8vw, 64px); }
+  #pause h1 { font-size: clamp(36px, 6vw, 54px); }
   #pause .startrow { justify-content: center; }
 
   #loading {
@@ -587,14 +590,13 @@
     <p class="eyebrow">Open desert · 8 gates · one bike</p>
     <h1>Dustbowl <em>'98</em></h1>
     <p class="blurb">
-      Sunset in the bowl. Roll the throttle, aim for the lips, and keep the wheels
-      pointed downhill — land flat and the score keeps climbing, land sideways and
-      you eat sand.
+      Sunset in the bowl. Hold your line through the dust, carry speed through the
+      turns, and chase the fastest three laps across the desert.
     </p>
     <div class="keys">
       <div><kbd>W</kbd><kbd>↑</kbd> Throttle</div>
-      <div><kbd>S</kbd><kbd>↓</kbd> Brake · nose up in air</div>
-      <div><kbd>A</kbd><kbd>D</kbd> Steer · whip in air</div>
+      <div><kbd>S</kbd><kbd>↓</kbd> Brake</div>
+      <div><kbd>A</kbd><kbd>D</kbd> Steer</div>
       <div><kbd>R</kbd> Reset to last gate</div>
       <div><kbd>C</kbd> Camera <span id="camName">CHASE</span></div>
       <div><kbd>M</kbd> Sound <span id="sndState">ON</span> · <kbd>P</kbd> Pause</div>
