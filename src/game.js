@@ -1,5 +1,5 @@
 /* =======================================================================
-   DUSTBOWL '98  —  arcade dirt-bike riding over procedural desert
+   DUSTBOWL  —  arcade dirt-bike riding over procedural desert
    ======================================================================= */
 (function () {
 'use strict';
@@ -51,7 +51,7 @@ function fbm(x, y, oct) {
 }
 
 /* ------------------------------------------------------------ constants */
-const BUILD = 'v0.10 · 3 Aug';  // shown on the title screen, so you can tell
+const BUILD = 'v0.11 · 3 Aug';  // shown on the title screen, so you can tell
                                  // at a glance whether a deploy actually landed
 /* Phones get a lighter build of the world. Decided once, up front, because the
    terrain mesh is baked at load. */

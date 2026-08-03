@@ -1,4 +1,4 @@
-# Dustbowl '98
+# Dustbowl
 
 Arcade dirt-bike game in Three.js — a homage to open-terrain motocross games of the late 90s. Three laps of a procedurally cut desert circuit, timed, with air-time scoring. Playable on desktop (keyboard) and mobile (touch).
 

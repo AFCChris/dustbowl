@@ -1,4 +1,4 @@
-# Dustbowl '98
+# Dustbowl
 
 Arcade dirt-bike riding over procedural desert — a tribute to the open-terrain
 motocross games of the late 90s. Working title.

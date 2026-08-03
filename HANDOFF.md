@@ -1,4 +1,4 @@
-# Dustbowl '98 — handoff spec
+# Dustbowl — handoff spec
 
 For whoever (or whatever) picks this up next, in Replit or anywhere else. Assumes
 you have the code and none of the history. `README.md` is the short tour; this is

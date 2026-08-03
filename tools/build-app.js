@@ -29,7 +29,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Dustbowl '98</title>
+<title>Dustbowl</title>
 <meta name="description" content="Arcade dirt-bike riding over procedural desert.">
 <meta name="theme-color" content="#14161c">
 <link rel="manifest" href="manifest.webmanifest">
@@ -51,7 +51,7 @@ ${body}
 `;
 
 const manifest = {
-  name: "Dustbowl '98",
+  name: 'Dustbowl',
   short_name: 'Dustbowl',
   description: 'Arcade dirt-bike riding over procedural desert.',
   start_url: './',

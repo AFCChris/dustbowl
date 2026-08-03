@@ -1,4 +1,4 @@
-# Dustbowl '98 — how to put it on your phone
+# Dustbowl — how to put it on your phone
 
 The `dist/` folder is the whole app. `index.html` must sit at the root of the
 host — everything else sits beside it. No build step on the server, no server
