@@ -220,8 +220,8 @@ points for the spline**. There are no gate rings in the world, and `arrowPivot` 
 old direction arrow) is created but permanently `visible = false` — dead code kept
 because a stunt/free-ride mode would want it back.
 
-The title screen still says "8 gates" and the key list still says `R` = "Reset to
-last gate". Both are stale copy.
+The title screen and reset key copy have been updated to describe the current
+race rather than the removed gate system.
 
 ### Audio has several independent kill paths, on purpose
 
@@ -310,7 +310,6 @@ Ordered roughly by how much they'd matter to a player.
 - **The PWA doesn't work offline.** There's a manifest and icons but no service
   worker, so "Add to Home Screen" gives you a fullscreen launcher, not an offline
   app.
-- **Stale UI copy**: "8 gates", "Reset to last gate" (there are no gates any more).
 - `BUILD` (`src/game.js`, near the top) is a hand-edited string shown on the title
   screen so you can tell at a glance whether a deploy actually landed. Bump it when
   you ship, or it lies.
@@ -319,16 +318,50 @@ Ordered roughly by how much they'd matter to a player.
 
 ## 5. Intended direction
 
-Nothing here is committed to; it's where the design was pointing when work paused.
+The goal is a broader arcade motocross game inspired by how the original
+*Motocross Madness* felt, not a complete remake. The 1998 game's manual confirms
+four useful single-player event families: National Race, Supercross, Baja, and
+Stunt Quarry. It also featured multiple views, bike tuning, AI riders, and a
+track editor. Those are reference points, not a feature checklist to copy.
 
-1. **Seeded tracks.** Make the seed a real parameter, surface it, let a track be
-   shared as a short string. Cheap, and it turns one course into infinite courses.
-2. **Stunt / free-ride mode.** The second mode the code is already shaped for:
-   clear `mode-race`, show the stunt score, populate `ramps`, drop the lap structure.
-   This is what the ramp system and the dead direction arrow are being kept for.
-3. **Chunking + LOD**, if older phones become a target.
-4. Race polish that follows from (1): saved best times per seed, a ghost, then
-   opponents.
+This game's own identity should include its accessible auto-throttle and,
+especially, its strong overhead camera alongside the more familiar chase views.
+
+### Event direction
+
+1. **National.** Treat the current game as the foundation of this mode. Grow it
+   from a one-bike time trial into a proper outdoor motocross event: many
+   distinct tracks, a field of AI riders, starts, race positions, results, and
+   improved bike/rider handling and animation.
+2. **Supercross.** Stadium-based racing on compact, technical courses with dense
+   jumps, whoops, rhythm sections, and closer competition.
+3. **Baja.** Wide-open point-to-point or circuit events across deserts, quarries,
+   and canyons. The current terrain and course systems already overlap with this
+   direction, but the existing event is National for now.
+4. **Stunt Park.** Big-air and trick events using the retained ramp system,
+   stunt-score HUD, combo scoring, and direction-arrow scaffolding.
+5. **Pro track editor.** A possible paid/pro feature once the course format is
+   stable. The original game did include a track editor; here it should let
+   players build, test, save, and share tracks without compromising the simple
+   core game.
+
+### Development order
+
+First make **National** feel like a complete event rather than branching into
+several shallow modes. The likely sequence is:
+
+1. Real seeded tracks and a track-selection/event shell.
+2. Several authored or constrained-procedural National courses.
+3. AI riders, race starts, position tracking, and full-field results.
+4. Better bike/rider physics and presentation, preserving the deliberately
+   arcade handling and the `terrainH` invariant described above.
+5. Supercross, Baja, and Stunt Park once National supplies reusable race,
+   opponent, selection, and results systems.
+6. A track editor only after the track representation and validation rules have
+   stopped changing.
+
+**Research source:** the original *Motocross Madness* (1998) PC manual, including
+its Events, Views, bike setup, and Track Editor sections.
 
 The aesthetic target is a late-90s console racer — dust haze, warm sunset palette,
 condensed display type, chunky HUD panels. The visual language is consistent across
