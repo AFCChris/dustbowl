@@ -51,8 +51,8 @@ function fbm(x, y, oct) {
 }
 
 /* ------------------------------------------------------------ constants */
-const BUILD = 'v0.13 · 3 Aug';  // shown on the title screen, so you can tell
-                                 // at a glance whether a deploy actually landed
+const BUILD = 'v0.14 · AI field';  // shown on the title screen, so you can tell
+                                   // at a glance whether a deploy actually landed
 /* Phones get a lighter build of the world. Decided once, up front, because the
    terrain mesh is baked at load. */
 const MOBILE = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 820;
@@ -1151,18 +1151,446 @@ function resetRun() {
   G.score = 0; G.nextCP = 0; G.lap = 1; G.lapStart = clock; G.totalAir = 0; G.bigAir = 0;
   G.finished = false; G.raceStart = clock; G.raceTime = 0; G.lapTimes = [];
   respawn(true);
+  /* Override the generic respawn position with the front-of-grid slot. */
+  const pg = gridSpawn(GRID_SLOTS[0].along, GRID_SLOTS[0].lat);
+  S.pos.set(pg.x, terrainH(pg.x, pg.z) + RIDE_H + 0.05, pg.z);
+  S.vel.set(0, 0, 0);
+  S.yaw = pg.yaw;
+  S.quat.setFromAxisAngle(upV, pg.yaw);
   S.lastGoodPos.copy(S.pos);
   S.lastGoodYaw = S.yaw;
+  resetGateTracking();
+  resetAI();
+}
+
+/* ======================================================= AI RIDER SYSTEM */
+
+/* Colour palette — one per rider, warm/cool mix so they read clearly on the
+   desert terrain without clashing with the player's red bike. */
+const AI_PALETTE = [0x2a7dd8, 0x2ab84c, 0xe0b828, 0xa022d8, 0xd82290, 0x20bcd8, 0xe86020];
+const AI_NAMES   = ['Rider 1','Rider 2','Rider 3','Rider 4','Rider 5','Rider 6','Rider 7'];
+const PLAYER_NAME = 'You';
+const NUM_AI = 7;
+const TOTAL_RIDERS = NUM_AI + 1;
+
+/* Grid: slot 0 = player (front), slots 1-7 = AI riders behind. */
+const GRID_SLOTS = [
+  { along: trackLen - 2,  lat:  0    },   // player — front row, centre
+  { along: trackLen - 8,  lat: -2.5  },   // row 2 left
+  { along: trackLen - 8,  lat:  2.5  },   // row 2 right
+  { along: trackLen - 14, lat: -2.5  },   // row 3 left
+  { along: trackLen - 14, lat:  2.5  },   // row 3 right
+  { along: trackLen - 20, lat: -2.5  },   // row 4 left
+  { along: trackLen - 20, lat:  2.5  },   // row 4 right
+  { along: trackLen - 26, lat:  0    },   // row 5 — tail-ender
+];
+
+/* Spawn-point at a given arc-distance along the track with a lateral offset
+   in metres (positive = left of travel direction). */
+function gridSpawn(atAlong, lateral) {
+  const N = trackPts.length;
+  const i = ((Math.round((atAlong / trackLen) * N)) % N + N) % N;
+  const p = trackPts[i], q = trackPts[(i + 3) % N];
+  const dx = q.x - p.x, dz = q.z - p.z;
+  const el = Math.hypot(dx, dz) || 1;
+  const px = -dz / el, pz = dx / el;      // unit perpendicular, left of travel
+  return { x: p.x + px * lateral, z: p.z + pz * lateral, yaw: Math.atan2(dx, dz) };
+}
+
+/* Simplified AI bike: body + coloured fairing + two wheels + static rider box.
+   No shadow casting — 7 extra shadow maps would blow the budget on mobile. */
+function makeAIBike(color) {
+  const g   = new THREE.Group();
+  const col = new THREE.MeshLambertMaterial({ color });
+  const drk = new THREE.MeshLambertMaterial({ color: 0x22242a });
+  const bdy = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.34, 1.05), drk);
+  bdy.position.set(0, 0.72, -0.1);
+  g.add(bdy);
+  const fair = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.30, 0.52), col);
+  fair.position.set(0, 0.94, 0.18);
+  g.add(fair);
+  for (const zOff of [-0.72, 0.78]) {
+    const w = new THREE.Mesh(new THREE.TorusGeometry(WHEEL_R, 0.115, 6, 14), drk);
+    w.rotation.y = Math.PI / 2;
+    w.position.set(0, WHEEL_R, zOff);
+    g.add(w);
+  }
+  const rdr = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.50, 0.26), col);
+  rdr.position.set(0, 1.22, -0.08);
+  rdr.rotation.x = -0.48;
+  g.add(rdr);
+  g.traverse(c => { if (c.isMesh) { c.castShadow = false; c.receiveShadow = false; } });
+  return g;
+}
+
+/* Build the AI rider objects. Each carries its own physics state, pace
+   parameters, mistake timer, and Three.js mesh. */
+const aiRiders = [];
+for (let i = 0; i < NUM_AI; i++) {
+  const ai = {
+    idx: i,
+    name: AI_NAMES[i],
+    color: AI_PALETTE[i],
+    pos: new THREE.Vector3(),
+    vel: new THREE.Vector3(),
+    yaw: 0,
+    along: 0,          // arc-distance along the lap, 0..trackLen
+    lap: 1,
+    lapStart: 0,
+    lapTimes: [],
+    finished: false,
+    finishTime: null,
+    grounded: true,
+    wheelSpin: 0,
+    /* Pace spread: topSpeedBase ranges 0.78 → 0.96 across the field. */
+    topSpeedBase: 0.78 + i * (0.18 / Math.max(1, NUM_AI - 1)),
+    topSpeedEff: 0,    // modified by rubber-banding during the race
+    /* Cornering: how tightly they track the centreline. */
+    cornering: 0.62 + hash2(i * 7 + 1, 31) * 0.32,
+    /* Mistake state — brief wobble/stall that costs speed and line. */
+    nextMistakeAt: 0,
+    mistakeActive: false,
+    mistakeEndAt: 0,
+    mistakeSteer: 0,   // signed lateral bias injected during the mistake
+    /* Sector gate — mirrors the player's sectorSeen in checkCheckpoint so that
+       a grid-start along near trackLen does not count as a lap crossing before
+       the AI has actually completed one full lap. */
+    sectorSeen: false,
+    mesh: makeAIBike(AI_PALETTE[i]),
+  };
+  ai.topSpeedEff = ai.topSpeedBase;
+  ai.mesh.visible = false;
+  scene.add(ai.mesh);
+  aiRiders.push(ai);
+}
+
+/* Place all AI riders on the grid and reset their race state. */
+function resetAI() {
+  for (let i = 0; i < NUM_AI; i++) {
+    const ai   = aiRiders[i];
+    const slot = GRID_SLOTS[i + 1];
+    const sp   = gridSpawn(slot.along, slot.lat);
+    ai.pos.set(sp.x, terrainH(sp.x, sp.z) + RIDE_H + 0.05, sp.z);
+    ai.vel.set(0, 0, 0);
+    ai.yaw = sp.yaw;
+    ai.along = ((slot.along % trackLen) + trackLen) % trackLen;
+    ai.lap = 1; ai.lapStart = clock; ai.lapTimes = [];
+    ai.finished = false; ai.finishTime = null;
+    ai.grounded = true; ai.wheelSpin = 0;
+    ai.topSpeedEff = ai.topSpeedBase;
+    ai.nextMistakeAt = 3 + hash2(i * 3 + 1, 17) * 9;
+    ai.mistakeActive = false; ai.mistakeSteer = 0;
+    ai.sectorSeen = false;
+    ai.mesh.position.copy(ai.pos);
+    ai.mesh.position.y -= RIDE_H;
+    ai.mesh.quaternion.setFromAxisAngle(upV, ai.yaw);
+    ai.mesh.visible = true;
+  }
+}
+
+/* ---------------------------------------------------------------- stepAI
+   Simplified physics step for one AI rider, sharing terrainH / trackProfile
+   with the player. The _p singleton is read and fields are copied immediately
+   — it is never stored. Single terrainH sample per substep (performance).  */
+function stepAI(ai, dt) {
+  const gh  = terrainH(ai.pos.x, ai.pos.z);
+
+  /* Copy track profile fields before any subsequent call can overwrite _p. */
+  const _tp = trackProfile(ai.pos.x, ai.pos.z);
+  const tp_s = _tp ? _tp.s : 0;
+
+  /* Mistake effect on steering authority and target line. */
+  const cornerEff = ai.mistakeActive ? ai.cornering * 0.22 : ai.cornering;
+  const wobble    = ai.mistakeActive ? ai.mistakeSteer * 0.7 : 0;
+
+  /* Steer toward track centreline, blended by cornering ability. */
+  const centerErr = clamp(-tp_s / TRACK_HALF, -1, 1);
+  const steerIn   = clamp(centerErr * cornerEff + wobble, -1, 1);
+
+  const fwX = Math.sin(ai.yaw), fwZ = Math.cos(ai.yaw);
+  const speedF   = ai.vel.x * fwX + ai.vel.z * fwZ;
+  const absSpeed = Math.hypot(ai.vel.x, ai.vel.y, ai.vel.z);
+  const effTop   = MAX_SPEED * ai.topSpeedEff * (ai.mistakeActive ? 0.68 : 1.0);
+
+  ai.grounded = ai.pos.y <= gh + RIDE_H + 0.08;
+
+  if (ai.grounded) {
+    ai.pos.y = Math.max(ai.pos.y, gh + RIDE_H);
+
+    /* Engine — same power curve as player, scaled by effective top speed. */
+    const power = 30 * (1 - clamp(speedF / effTop, 0, 1));
+    ai.vel.x += fwX * power * dt;
+    ai.vel.z += fwZ * power * dt;
+
+    /* Steering — same authority curve as player. */
+    const steerAuth = clamp(absSpeed / 6, 0, 1) * (1 - clamp(absSpeed / (MAX_SPEED * 1.5), 0, 0.55));
+    ai.yaw -= steerIn * 2.2 * dt * steerAuth;
+
+    /* Lateral grip. */
+    const rwX = Math.cos(ai.yaw), rwZ = -Math.sin(ai.yaw);
+    const lat  = ai.vel.x * rwX + ai.vel.z * rwZ;
+    const grip = 1 - Math.exp(-13 * dt);
+    ai.vel.x  -= rwX * lat * grip;
+    ai.vel.z  -= rwZ * lat * grip;
+
+    /* Drag — onTrack() calls trackProfile again, which overwrites _p, but we
+       have already copied the fields we needed. */
+    const surf = onTrack(ai.pos.x, ai.pos.z);
+    const loose = (1 - surf) * 0.62;
+    const drag  = Math.exp(-((0.1 + loose) * dt + 0.004 * absSpeed * dt));
+    ai.vel.x *= drag;
+    ai.vel.z *= drag;
+
+    /* Suspension spring — keeps AI glued to terrain without a normal calc. */
+    ai.vel.y += (gh + RIDE_H - ai.pos.y) * 90 * dt;
+    ai.vel.y -= ai.vel.y * clamp(16 * dt, 0, 1);
+
+    ai.pos.x += ai.vel.x * dt;
+    ai.pos.y += ai.vel.y * dt;
+    ai.pos.z += ai.vel.z * dt;
+
+    const ngh = terrainH(ai.pos.x, ai.pos.z);
+    if (ai.pos.y < ngh + RIDE_H) { ai.pos.y = ngh + RIDE_H; if (ai.vel.y < 0) ai.vel.y = 0; }
+
+    ai.wheelSpin += speedF / WHEEL_R * dt;
+
+  } else {
+    /* Airborne — gravity, slight drag, no pitch control. */
+    ai.vel.y -= GRAV * dt;
+    ai.vel.x *= Math.exp(-0.06 * dt);
+    ai.vel.z *= Math.exp(-0.06 * dt);
+    ai.pos.x += ai.vel.x * dt;
+    ai.pos.y += ai.vel.y * dt;
+    ai.pos.z += ai.vel.z * dt;
+
+    const lgh = terrainH(ai.pos.x, ai.pos.z);
+    if (ai.pos.y < lgh + RIDE_H) {
+      ai.pos.y = lgh + RIDE_H;
+      if (ai.vel.y < 0) ai.vel.y = 0;
+      ai.grounded = true;
+    }
+  }
+
+  /* Rim guard — same boundary as player. */
+  const rr = Math.hypot(ai.pos.x, ai.pos.z);
+  if (rr > PLAY_R + 90) {
+    ai.pos.x *= (PLAY_R + 88) / rr;
+    ai.pos.z *= (PLAY_R + 88) / rr;
+    ai.vel.x *= 0.3; ai.vel.z *= 0.3;
+  }
+}
+
+/* Record a completed lap for an AI, advancing its lap counter or marking it
+   finished. Idempotent once ai.finished is true. */
+function _recordAILap(ai) {
+  if (ai.finished) return;
+  ai.lapTimes.push(clock - ai.lapStart);
+  ai.lapStart = clock;
+  if (ai.lap >= RACE_LAPS) {
+    ai.finished   = true;
+    ai.finishTime = clock - G.raceStart;
+  } else {
+    ai.lap++;
+  }
+}
+
+/* Effective total-race-distance for ranking (higher = further ahead).
+   Finished riders always outrank non-finished; among finished, earlier
+   finish time = higher score. */
+function effTotalDist(lap, along, finished, finishTime) {
+  if (finished) return (RACE_LAPS + 1) * trackLen - (finishTime || 0);
+  return (lap - 1) * trackLen + along;
+}
+
+/* Player position 1–TOTAL_RIDERS, computed each frame. */
+function computePlayerPos() {
+  const _pp = trackProfile(S.pos.x, S.pos.z);
+  const pa  = _pp ? _pp.along : 0;    // copy before any other call
+  const pd  = effTotalDist(G.lap, pa, G.finished, G.raceTime);
+  let ahead = 0;
+  for (const ai of aiRiders) {
+    if (effTotalDist(ai.lap, ai.along, ai.finished, ai.finishTime) > pd) ahead++;
+  }
+  return ahead + 1;
+}
+
+/* Sorted finisher list for the results screen. */
+function buildRanking() {
+  const _pp = trackProfile(S.pos.x, S.pos.z);
+  const pa  = _pp ? _pp.along : 0;
+  const all = [
+    { name: PLAYER_NAME, isPlayer: true,
+      finished: G.finished, finishTime: G.raceTime, lap: G.lap, along: pa },
+    ...aiRiders.map(ai => ({
+      name: ai.name, isPlayer: false,
+      finished: ai.finished, finishTime: ai.finishTime, lap: ai.lap, along: ai.along,
+    }))
+  ];
+  all.sort((a, b) =>
+    effTotalDist(b.lap, b.along, b.finished, b.finishTime) -
+    effTotalDist(a.lap, a.along, a.finished, a.finishTime)
+  );
+  return all;
+}
+
+/* Throttle locked to zero while the countdown runs; released at GO. */
+let countingDown = false;
+/* Incrementing session token — each new startCountdown() call makes any
+   previously queued setTimeout callbacks stale so quit/restart mid-countdown
+   cannot clear countingDown or hide the overlay for the new session. */
+let _cdToken = 0;
+
+/* 3-2-1-GO overlay. Race and lap clocks are synced to the GO instant so
+   countdown wall-time never leaks into lap or race times. */
+function startCountdown() {
+  countingDown = true;
+  const token = ++_cdToken;
+  const el  = $('#countdown');
+  const num = $('#cdNum');
+  el.classList.add('show');
+  const phases = ['3','2','1','GO!'];
+  let i = 0;
+  function tick() {
+    if (_cdToken !== token) return;   // session superseded or cancelled
+    num.textContent = phases[i];
+    num.classList.toggle('go', i === 3);
+    chime(i < 3 ? 880 : 1320);
+    if (i < 3) { i++; setTimeout(tick, 900); }
+    else {
+      setTimeout(() => {
+        if (_cdToken !== token) return;   // cancelled after the final chime
+        el.classList.remove('show');
+        countingDown = false;
+        /* Sync race and lap clocks to the actual GO moment so neither the
+           player nor any AI accrues countdown time in their first lap. */
+        G.raceStart = clock;
+        G.lapStart  = clock;
+        for (const ai of aiRiders) ai.lapStart = clock;
+      }, 700);
+    }
+  }
+  tick();
+}
+
+/* ----------------------------------------------------------- updateAI
+   Called once per frame. Advances all AI riders (full sim within 250m of the
+   player, analytical beyond that) and handles lap counting, mistakes,
+   rubber-banding, and soft repulsion. */
+function updateAI(dt) {
+  if (countingDown) return;
+
+  for (const ai of aiRiders) {
+    if (ai.finished) continue;   // parked past the finish; mesh stays visible
+
+    const prevAlong   = ai.along;
+    const dist2player = ai.pos.distanceTo(S.pos);
+
+    if (dist2player > 250) {
+      /* ---- LOD: analytical advance on the centreline ---- */
+      const speed = MAX_SPEED * ai.topSpeedEff * (ai.mistakeActive ? 0.68 : 1.0);
+      ai.along += speed * dt;
+      /* Sector gate — same 45–75 % window as the player's checkCheckpoint. */
+      if (ai.along > trackLen * 0.45 && ai.along < trackLen * 0.75) ai.sectorSeen = true;
+      if (ai.along >= trackLen) {
+        ai.along -= trackLen;
+        if (ai.sectorSeen) {
+          _recordAILap(ai);
+          ai.sectorSeen = false;
+        }
+        if (ai.finished) { continue; }
+      }
+      /* Reposition on the centreline (one height sample). */
+      const sp  = gridSpawn(ai.along, 0);
+      const ty  = terrainH(sp.x, sp.z);
+      ai.pos.set(sp.x, ty + RIDE_H, sp.z);
+      ai.yaw = sp.yaw;
+      ai.vel.set(Math.sin(sp.yaw) * speed, 0, Math.cos(sp.yaw) * speed);
+      ai.grounded = true;
+
+    } else {
+      /* ---- Full sim (same substep rate as player) ---- */
+      const substeps = Math.min(4, Math.max(1, Math.ceil(dt / 0.025)));
+      const sdt = dt / substeps;
+      for (let k = 0; k < substeps; k++) stepAI(ai, sdt);
+
+      /* Update ai.along from actual position — copy along immediately. */
+      const _qp = trackProfile(ai.pos.x, ai.pos.z);
+      const newAlong = _qp ? _qp.along : ai.along;
+
+      /* Sector gate — same 45–75 % window as the player's checkCheckpoint. */
+      if (newAlong > trackLen * 0.45 && newAlong < trackLen * 0.75) ai.sectorSeen = true;
+
+      /* Wrap-based lap detection, gated by sectorSeen. Without the gate, AIs
+         starting near trackLen (the grid) would record a false lap on their
+         very first start/finish crossing after only metres of travel. */
+      if (prevAlong > trackLen * 0.8 && newAlong < trackLen * 0.2 && ai.sectorSeen) {
+        _recordAILap(ai);
+        ai.sectorSeen = false;
+      }
+      ai.along = newAlong;
+      if (ai.finished) { continue; }
+    }
+
+    /* ---- Mistake scheduling ---- */
+    if (!ai.mistakeActive && clock > ai.nextMistakeAt) {
+      ai.mistakeActive = true;
+      ai.mistakeEndAt  = clock + 0.7 + hash2(ai.idx * 13 + (clock * 10 | 0), 7) * 1.1;
+      ai.mistakeSteer  = (hash2(ai.idx * 5 + 1, 19) > 0.5 ? 1 : -1) * 0.55;
+    }
+    if (ai.mistakeActive && clock > ai.mistakeEndAt) {
+      ai.mistakeActive = false;
+      ai.nextMistakeAt = clock + 4 + hash2(ai.idx * 7 + (clock | 0), 11) * 15;
+    }
+
+    /* ---- Rubber-banding (soft ±5 % of topSpeedBase) ---- */
+    const _rp   = trackProfile(S.pos.x, S.pos.z);
+    const rpa   = _rp ? _rp.along : 0;   // player along — copy immediately
+    const pDist = effTotalDist(G.lap, rpa, G.finished, G.raceTime);
+    const aDist = effTotalDist(ai.lap, ai.along, false, null);
+    const gap   = pDist - aDist;          // positive → player is ahead
+    const rbTgt = ai.topSpeedBase * (1 + clamp(gap / 200, -0.05, 0.05));
+    ai.topSpeedEff = lerp(ai.topSpeedEff, rbTgt, 1 - Math.exp(-0.6 * dt));
+
+    /* ---- Soft repulsion from player ---- */
+    const rdx = ai.pos.x - S.pos.x, rdz = ai.pos.z - S.pos.z;
+    const rdist = Math.hypot(rdx, rdz);
+    if (rdist < 1.8 && rdist > 0.02) {
+      const f = (1.8 - rdist) / 1.8 * 5;
+      ai.vel.x += (rdx / rdist) * f * dt;
+      ai.vel.z += (rdz / rdist) * f * dt;
+      /* Gentle nudge back to the player — never hard-blocks a jump. */
+      S.vel.x  -= (rdx / rdist) * f * 0.28 * dt;
+      S.vel.z  -= (rdz / rdist) * f * 0.28 * dt;
+    }
+
+    /* ---- Soft repulsion between AI riders ---- */
+    for (const other of aiRiders) {
+      if (other === ai) continue;
+      const odx = ai.pos.x - other.pos.x, odz = ai.pos.z - other.pos.z;
+      const od  = Math.hypot(odx, odz);
+      if (od < 1.5 && od > 0.02) {
+        const f = (1.5 - od) / 1.5 * 3;
+        ai.vel.x += (odx / od) * f * dt;
+        ai.vel.z += (odz / od) * f * dt;
+      }
+    }
+
+    /* ---- Update Three.js mesh ---- */
+    ai.mesh.position.copy(ai.pos);
+    ai.mesh.position.y -= RIDE_H;
+    ai.mesh.quaternion.setFromAxisAngle(upV, ai.yaw);
+  }
 }
 
 /* -------------------------------------------------------------- physics */
 function step(dt) {
   const steerIn = clamp((keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0) + touch.steer, -1, 1);
   const brakeIn = (keys.ArrowDown || keys.KeyS ? 1 : 0) + touch.brake + (keys.Space ? 1 : 0);
-  // auto-throttle: the bike drives itself unless you're on the brake
-  const gasIn = autoThrottle && !S.crashed
+  // auto-throttle: the bike drives itself unless you're on the brake.
+  // During the countdown the throttle is locked to zero for everyone.
+  const gasIn = countingDown ? 0 : (autoThrottle && !S.crashed
     ? (brakeIn > 0 ? 0 : 1)
-    : (keys.ArrowUp || keys.KeyW ? 1 : 0) + touch.gas;
+    : (keys.ArrowUp || keys.KeyW ? 1 : 0) + touch.gas);
   // In the air the throttle keys double as pitch control — but only if the rider
   // presses them *after* leaving the ground. Holding the gas through a jump
   // shouldn't quietly tip you onto your face.
@@ -1407,7 +1835,7 @@ const elSpeed = $('#speedVal'), elArc = $('#speedArc'), elScore = $('#scoreVal')
 const elCP = $('#cpVal'), elLap = $('#lapVal'), elTime = $('#timeVal'), elBest = $('#bestVal');
 const elAir = $('#airFill'), elAirVal = $('#airVal'), elDist = $('#distVal');
 const elBanner = $('#banner'), elBanTitle = $('#banTitle'), elBanSub = $('#banSub');
-const elFps = $('#perf');
+const elFps = $('#perf'), elPos = $('#posVal');
 const ARC_LEN = 236;
 let bannerT = 0;
 
@@ -1465,6 +1893,15 @@ function drawMap() {
   mmx.fillStyle = '#e4453a';
   mmx.fill();
   mmx.restore();
+  // AI rider dots — one coloured circle per rider
+  for (const ai of aiRiders) {
+    if (!ai.mesh.visible) continue;
+    const ax = cx + ai.pos.x * scale, az = cy + ai.pos.z * scale;
+    mmx.beginPath();
+    mmx.arc(ax, az, 3, 0, 6.283);
+    mmx.fillStyle = '#' + ai.color.toString(16).padStart(6, '0');
+    mmx.fill();
+  }
 }
 
 /* --------------------------------------------------------------- camera */
@@ -1616,6 +2053,7 @@ function update(dt) {
   const steps = Math.min(6, Math.max(1, Math.ceil(dt / 0.02)));
   for (let i = 0; i < steps; i++) step(dt / steps);
   if (!S.crashed) checkCheckpoint();
+  updateAI(dt);
 
   // ---- transforms
   bike.position.copy(S.pos);
@@ -1677,6 +2115,7 @@ function update(dt) {
   elScore.textContent = Math.round(G.score).toLocaleString('en-US');
   elCP.textContent = G.finished ? 'DONE' : lapPct + '%';
   elLap.textContent = G.lap + '/' + RACE_LAPS;
+  elPos.textContent = 'P ' + computePlayerPos() + '/' + TOTAL_RIDERS;
   elTime.textContent = G.finished ? fmtTime(G.raceTime) : fmtTime(clock - G.lapStart);
   elBest.textContent = G.best === null ? '—:——' : fmtTime(G.best);
   elDist.textContent = S.surf > 0.5 ? 'ON' : 'OFF';
@@ -1714,6 +2153,19 @@ function showResults() {
   killAudio();
   $('#rTotal').textContent = fmtTime(G.raceTime);
   $('#rBest').textContent = G.best === null ? '—:——' : fmtTime(G.best);
+
+  /* Full-field finisher ranking table. */
+  const ranking = buildRanking();
+  $('#finisherRows').innerHTML = ranking.map((r, pos) => {
+    const timeStr = r.finished ? fmtTime(r.finishTime) : 'Lap ' + r.lap;
+    return '<tr class="' + (r.isPlayer ? 'player-row' : '') + '">'
+      + '<td>' + (pos + 1) + '</td>'
+      + '<td>' + r.name + '</td>'
+      + '<td>' + timeStr + '</td>'
+      + '</tr>';
+  }).join('');
+
+  /* Player lap breakdown. */
   const rows = G.lapTimes.map((t, i) =>
     '<tr class="' + (t === G.best ? 'best' : '') + '"><td>Lap ' + (i + 1) + '</td><td>' + fmtTime(t) + '</td></tr>'
   ).join('');
@@ -1745,11 +2197,15 @@ function startGame() {
   document.body.classList.add('playing');
   resetRun();
   last = performance.now();
+  startCountdown();
 }
 
 function quitToTitle() {
+  _cdToken++;   // cancel any outstanding countdown callbacks
   started = false;
   resultsUp = false;
+  countingDown = false;
+  $('#countdown').classList.remove('show');
   $('#results').classList.remove('show');
   setPaused(false);
   killAudio();
@@ -1758,6 +2214,7 @@ function quitToTitle() {
   $('#title').classList.remove('gone');
   document.body.classList.remove('playing', 'airborne');
   resetRun();
+  for (const ai of aiRiders) ai.mesh.visible = false;
   S.pos.set(0, terrainH(0, 0) + RIDE_H, 0);
   S.vel.set(0, 0, 0);
   last = performance.now();
@@ -1765,10 +2222,10 @@ function quitToTitle() {
 
 $('#startBtn').addEventListener('click', startGame);
 $('#menuBtn').addEventListener('click', () => { if (started && !resultsUp) setPaused(true); });
-$('#againBtn').addEventListener('click', () => { hideResults(); resetRun(); });
+$('#againBtn').addEventListener('click', () => { hideResults(); resetRun(); startCountdown(); });
 $('#resultsQuit').addEventListener('click', () => { hideResults(); quitToTitle(); });
 $('#resumeBtn').addEventListener('click', () => setPaused(false));
-$('#restartBtn').addEventListener('click', () => { G.best = null; resetRun(); setPaused(false); });
+$('#restartBtn').addEventListener('click', () => { G.best = null; resetRun(); setPaused(false); startCountdown(); });
 $('#quitBtn').addEventListener('click', quitToTitle);
 for (const id of ['#throttleBtn', '#throttleBtn2']) {
   $(id).addEventListener('click', () => setThrottleMode(!autoThrottle));
@@ -1778,6 +2235,8 @@ $('#sndBtn').addEventListener('click', () => { initAudio(); toggleAudio(); if (a
 
 // the title screen idles on the same loop as the game
 resetRun();
+// AI meshes only appear during an active race — hide them on the title screen
+for (const ai of aiRiders) ai.mesh.visible = false;
 camTarget.copy(S.pos);
 $('#buildStamp').textContent = BUILD;
 requestAnimationFrame(frame);
@@ -1796,6 +2255,11 @@ window.__dbg = {
   touch, setTouchMode, setThrottleMode,
   get started() { return started; },
   get paused() { return paused; },
-  get audio() { return { actx, engGain, windGain, audioOn }; }
+  get audio() { return { actx, engGain, windGain, audioOn }; },
+  /* AI diagnostics */
+  aiRiders, stepAI, updateAI, computePlayerPos, buildRanking,
+  effTotalDist, gridSpawn, resetAI, _recordAILap,
+  get countingDown() { return countingDown; },
+  RACE_LAPS, TOTAL_RIDERS, NUM_AI,
 };
 })();
