@@ -731,6 +731,14 @@ scene.add(bike);
 const bikeBody = new THREE.Group();
 bike.add(bikeBody);
 
+/* chassisInner: all frame geometry and the rider live here.
+   bikeBody receives the physics quaternion (slope + lean).
+   chassisInner can be pitched independently for visual chassis
+   tilt (nose-up at takeoff, nose-dip under braking) without
+   touching S.quat or any physics state. */
+const chassisInner = new THREE.Group();
+bikeBody.add(chassisInner);
+
 const matRed = new THREE.MeshLambertMaterial({ color: 0xd8352a });
 const matDark = new THREE.MeshLambertMaterial({ color: 0x22242a });
 const matChrome = new THREE.MeshLambertMaterial({ color: 0xb9bdc4 });
@@ -768,25 +776,43 @@ function makeWheel() {
   return g;
 }
 const wheelR = makeWheel(), wheelF = makeWheel();
-wheelR.position.set(0, WHEEL_R, -0.72);
-wheelF.position.set(0, WHEEL_R, 0.78);
-bikeBody.add(wheelR, wheelF);
 
-bikeBody.add(box(0.3, 0.34, 1.05, matDark, 0, 0.72, -0.1));
-bikeBody.add(box(0.34, 0.3, 0.52, matRed, 0, 0.94, 0.18));
-bikeBody.add(box(0.3, 0.12, 0.56, matDark, 0, 0.99, -0.36));
-bikeBody.add(box(0.42, 0.34, 0.06, matWhite, 0, 1.02, 0.52));
-bikeBody.add(box(0.36, 0.28, 0.08, matRed, 0, 0.5, -0.95));
-bikeBody.add(cyl(0.07, 0.07, 0.9, matChrome, -0.18, 0.72, 0.62, 0.28));
-bikeBody.add(cyl(0.07, 0.07, 0.9, matChrome, 0.18, 0.72, 0.62, 0.28));
-bikeBody.add(cyl(0.05, 0.05, 0.66, matDark, 0, 1.16, 0.5, 0, Math.PI / 2));
-bikeBody.add(cyl(0.06, 0.09, 0.7, matChrome, 0.2, 0.62, -0.6, Math.PI / 2 - 0.15));
-bikeBody.add(box(0.5, 0.05, 0.24, matDark, 0, 0.45, -0.05));
+/* Rear suspension group — Z positions the group at the rear axle;
+   group Y is shifted each frame to show visual suspension travel.
+   The wheel sits at its natural WHEEL_R height within the group. */
+const suspGroupR = new THREE.Group();
+suspGroupR.position.set(0, 0, -0.72);
+wheelR.position.set(0, WHEEL_R, 0);
+suspGroupR.add(wheelR);
+bikeBody.add(suspGroupR);
+
+/* Front: suspGroupF → steerGroup → wheelF.
+   suspGroupF offsets Y for fork compression; steerGroup rotates
+   on Y for visual steer angle (pure visual — no physics contact). */
+const suspGroupF = new THREE.Group();
+suspGroupF.position.set(0, 0, 0.78);
+const steerGroup = new THREE.Group();
+wheelF.position.set(0, WHEEL_R, 0);
+steerGroup.add(wheelF);
+suspGroupF.add(steerGroup);
+bikeBody.add(suspGroupF);
+
+/* Frame parts all go into chassisInner so chassis pitch affects them. */
+chassisInner.add(box(0.3, 0.34, 1.05, matDark, 0, 0.72, -0.1));
+chassisInner.add(box(0.34, 0.3, 0.52, matRed, 0, 0.94, 0.18));
+chassisInner.add(box(0.3, 0.12, 0.56, matDark, 0, 0.99, -0.36));
+chassisInner.add(box(0.42, 0.34, 0.06, matWhite, 0, 1.02, 0.52));
+chassisInner.add(box(0.36, 0.28, 0.08, matRed, 0, 0.5, -0.95));
+chassisInner.add(cyl(0.07, 0.07, 0.9, matChrome, -0.18, 0.72, 0.62, 0.28));
+chassisInner.add(cyl(0.07, 0.07, 0.9, matChrome, 0.18, 0.72, 0.62, 0.28));
+chassisInner.add(cyl(0.05, 0.05, 0.66, matDark, 0, 1.16, 0.5, 0, Math.PI / 2));
+chassisInner.add(cyl(0.06, 0.09, 0.7, matChrome, 0.2, 0.62, -0.6, Math.PI / 2 - 0.15));
+chassisInner.add(box(0.5, 0.05, 0.24, matDark, 0, 0.45, -0.05));
 
 /* rider */
 const rider = new THREE.Group();
 rider.position.set(0, 0.98, -0.16);
-bikeBody.add(rider);
+chassisInner.add(rider);
 const torso = box(0.36, 0.52, 0.26, matSuit, 0, 0.24, 0.06, -0.5);
 rider.add(torso);
 const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), matWhite);
@@ -796,13 +822,19 @@ rider.add(head);
 const visor = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.05), matDark);
 visor.position.set(0, 0.54, 0.44);
 rider.add(visor);
-for (const sx of [-1, 1]) {
-  const arm = box(0.1, 0.44, 0.1, matSuit, sx * 0.2, 0.28, 0.32, 0.85);
-  rider.add(arm);
-  const leg = box(0.14, 0.44, 0.16, matDark, sx * 0.15, -0.1, -0.1, 0.5);
-  rider.add(leg);
-  const boot = box(0.13, 0.12, 0.24, matDark, sx * 0.17, -0.34, -0.24);
-  rider.add(boot);
+/* Capture arm and leg refs so update() can animate them per-frame. */
+let armL, armR, legL, legR;
+{ let li = 0;
+  for (const sx of [-1, 1]) {
+    const arm = box(0.1, 0.44, 0.1, matSuit, sx * 0.2, 0.28, 0.32, 0.85);
+    rider.add(arm);
+    if (li === 0) armL = arm; else armR = arm;
+    const leg = box(0.14, 0.44, 0.16, matDark, sx * 0.15, -0.1, -0.1, 0.5);
+    rider.add(leg);
+    if (li === 0) legL = leg; else legR = leg;
+    rider.add(box(0.13, 0.12, 0.24, matDark, sx * 0.17, -0.34, -0.24));
+    li++;
+  }
 }
 
 /* ---------------------------------------------------------------- dust */
@@ -1078,6 +1110,13 @@ const S = {
   groundSmooth: null,   // suspended chassis line
   jolt: 0         // how much bump the suspension is currently eating
 };
+/* Visual-only one-shot: set to a 0–1 value on landing, decays to 0
+   in update(). Drives leg-compression and chassis nose-dip. Never
+   read by physics or takeoff logic. */
+let landImpactT = 0;
+/* One-shot camera jolt on crash: a small displacement that the camera
+   lerp smooths away within ~3 frames. Set in crash(), decays in updateCamera(). */
+const camJolt = new THREE.Vector3();
 const SUSP_TRAVEL = 0.42;   // metres of give before the chassis is pushed
 function takeoff() {
   // Carry the ramp's launch into the air. The suspension hugs the surface so
@@ -1198,7 +1237,9 @@ function gridSpawn(atAlong, lateral) {
 }
 
 /* Simplified AI bike: body + coloured fairing + two wheels + static rider box.
-   No shadow casting — 7 extra shadow maps would blow the budget on mobile. */
+   No shadow casting — 7 extra shadow maps would blow the budget on mobile.
+   riderMesh is exposed on the returned group so updateAI() can animate
+   posture for nearby riders without a scene traversal. */
 function makeAIBike(color) {
   const g   = new THREE.Group();
   const col = new THREE.MeshLambertMaterial({ color });
@@ -1219,6 +1260,7 @@ function makeAIBike(color) {
   rdr.position.set(0, 1.22, -0.08);
   rdr.rotation.x = -0.48;
   g.add(rdr);
+  g.riderMesh = rdr;   // ref for LOD posture animation in updateAI()
   g.traverse(c => { if (c.isMesh) { c.castShadow = false; c.receiveShadow = false; } });
   return g;
 }
@@ -1610,16 +1652,38 @@ function updateAI(dt) {
     ai.mesh.position.copy(ai.pos);
     ai.mesh.position.y -= RIDE_H;
     ai.mesh.quaternion.setFromAxisAngle(upV, ai.yaw);
+
+    /* ---- LOD rider posture: animate only within 80 m of the player.
+       Beyond that the box is too small to read; skip the lerp to stay
+       O(1)-ish per rider and mobile-safe. Uses only ai.vel and ai.grounded
+       — no physics state belonging to the player is touched. */
+    if (dist2player < 80) {
+      const aiSpd = Math.hypot(ai.vel.x, ai.vel.z);
+      const aiPitch = ai.grounded
+        ? -0.48 + clamp(-aiSpd / 90, -0.20, 0)
+        : -0.30;
+      ai.mesh.riderMesh.rotation.x = lerp(
+        ai.mesh.riderMesh.rotation.x,
+        aiPitch,
+        1 - Math.exp(-5 * dt)
+      );
+    }
   }
 }
 
 /* -------------------------------------------------------------- physics */
+/* Lifted to module scope so update() can read them for visual animation.
+   Written by step() on every substep; the last substep's values are what
+   the renderer sees. Never used by the physics itself after step() returns,
+   so there is no risk of them feeding back into handling. */
+let steerIn = 0, brakeIn = 0, gasIn = 0;
+
 function step(dt) {
-  const steerIn = clamp((keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0) + touch.steer, -1, 1);
-  const brakeIn = (keys.ArrowDown || keys.KeyS ? 1 : 0) + touch.brake + (keys.Space ? 1 : 0);
+  steerIn = clamp((keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0) + touch.steer, -1, 1);
+  brakeIn = (keys.ArrowDown || keys.KeyS ? 1 : 0) + touch.brake + (keys.Space ? 1 : 0);
   // auto-throttle: the bike drives itself unless you're on the brake.
   // During the countdown the throttle is locked to zero for everyone.
-  const gasIn = countingDown ? 0 : (autoThrottle && !S.crashed
+  gasIn = countingDown ? 0 : (autoThrottle && !S.crashed
     ? (brakeIn > 0 ? 0 : 1)
     : (keys.ArrowUp || keys.KeyW ? 1 : 0) + touch.gas);
   // In the air the throttle keys double as pitch control — but only if the rider
@@ -1848,6 +1912,8 @@ function onLand(normal) {
   S.flipAccum = 0;
   if (impact > 5) thud(impact / 55);
   for (let i = 0; i < 6; i++) emitDust(S.pos.x, S.pos.y - RIDE_H, S.pos.z, 1 + impact / 20);
+  // Visual-only landing squash: 0–1 strength, decays in update().
+  landImpactT = clamp(impact / 18, 0, 1);
 }
 
 function crash() {
@@ -1859,6 +1925,9 @@ function crash() {
   S.vel.y = 4;
   banner('WIPEOUT', 'shake it off', true);
   thud(0.5);
+  // One-shot camera jolt: a small random offset the lerp smooths away over
+  // the next few frames. Visual feedback only; no physics contact.
+  camJolt.set((Math.random() - 0.5) * 1.4, Math.random() * 0.5, (Math.random() - 0.5) * 1.4);
 }
 
 /* ------------------------------------------------------------ HUD & UI */
@@ -1949,7 +2018,13 @@ function updateCamera(dt) {
   const sp = S.vel.length();
   fwdV.set(Math.sin(S.yaw), 0, Math.cos(S.yaw));
   if (camMode === 2) {
-    camWanted.set(S.pos.x - fwdV.x * 6, S.pos.y + 22, S.pos.z - fwdV.z * 6);
+    // HELI: tighten in during jumps so big air fills the frame better.
+    const airPull = clamp(S.airTime * 0.5, 0, 3.5);
+    camWanted.set(
+      S.pos.x - fwdV.x * (6 - airPull * 0.4),
+      S.pos.y + 22 - airPull,
+      S.pos.z - fwdV.z * (6 - airPull * 0.4)
+    );
   } else {
     const back = camMode === 0 ? 6.4 + sp * 0.1 : 4.2;
     const up = camMode === 0 ? 2.5 : 1.8;
@@ -1958,9 +2033,20 @@ function updateCamera(dt) {
     if (camWanted.y < ch) camWanted.y = ch;
   }
   camera.position.lerp(camWanted, 1 - Math.exp(-(S.crashed ? 3 : 7) * dt));
-  camTarget.lerp(tmpV.set(S.pos.x + fwdV.x * 4, S.pos.y + 1.2, S.pos.z + fwdV.z * 4), 1 - Math.exp(-9 * dt));
+  // Apply and decay the crash jolt — a small one-shot offset the lerp
+  // smooths away within a handful of frames. Visual only.
+  camera.position.add(camJolt);
+  camJolt.multiplyScalar(Math.exp(-10 * dt));
+  // Look-at target rises with air-time so the bike stays centred during
+  // a jump rather than the camera staring at the ground ahead of it.
+  const airLift = clamp(S.airTime * 0.9, 0, 2.2);
+  camTarget.lerp(
+    tmpV.set(S.pos.x + fwdV.x * 4, S.pos.y + 1.2 + airLift, S.pos.z + fwdV.z * 4),
+    1 - Math.exp(-9 * dt)
+  );
   camera.lookAt(camTarget);
-  const wantFov = 60 + clamp(sp / MAX_SPEED, 0, 1) * 9;
+  // FOV widens with speed and opens a touch more during big air.
+  const wantFov = 60 + clamp(sp / MAX_SPEED, 0, 1) * 9 + clamp(S.airTime * 0.8, 0, 3);
   camera.fov += (wantFov - camera.fov) * (1 - Math.exp(-4 * dt));
   camera.updateProjectionMatrix();
 }
@@ -2095,12 +2181,60 @@ function update(dt) {
   wheelR.rotation.x = -S.wheelSpin;
   wheelF.rotation.x = -S.wheelSpin;
   const sp = S.vel.length();
-  rider.rotation.x = lerp(rider.rotation.x, S.grounded ? clamp(-sp / 90, -0.3, 0) : 0.22, 1 - Math.exp(-6 * dt));
+
+  // ---- landing squash decay (visual only, never touches physics)
+  landImpactT = Math.max(0, landImpactT - dt * 3.5);
+
+  // ---- rider group: overall pitch (forward lean with speed / tuck in air)
+  const riderPitch = S.grounded
+    ? clamp(-sp / 90, -0.3, 0) - brakeIn * 0.08
+    : 0.22;
+  rider.rotation.x = lerp(rider.rotation.x, riderPitch, 1 - Math.exp(-6 * dt));
+
   // the suspension eats the chatter, but the rider still gets shaken by it
   const shake = clamp(S.jolt / SUSP_TRAVEL, 0, 1);
-  rider.position.y = 0.98 - shake * 0.055 * (0.6 + 0.4 * Math.sin(clock * 47));
+  rider.position.y = 0.98 - shake * 0.055 * (0.6 + 0.4 * Math.sin(clock * 47))
+    - landImpactT * 0.04;
   rider.position.z = lerp(rider.position.z, S.grounded ? -0.16 : -0.3, 1 - Math.exp(-5 * dt))
     + shake * 0.02 * Math.sin(clock * 39);
+
+  // ---- torso: reacts to brake and gas separately from the rider group
+  // Base tilt is -0.5 (hardcoded at construction); we animate around it.
+  const torsoDelta = S.grounded
+    ? clamp(-sp / 80, -0.18, 0) - brakeIn * 0.10 + landImpactT * 0.10
+    : 0.15;
+  torso.rotation.x = lerp(torso.rotation.x, -0.5 + torsoDelta, 1 - Math.exp(-5 * dt));
+
+  // ---- arms: counter-lean beyond the bike's own lean so the rider
+  // visibly hangs off in corners; readable from the chase camera.
+  // S.lean is the bike-frame lean; rider gets ~40% extra on top of that.
+  const extraLean = S.lean * 0.4;
+  armL.rotation.z = lerp(armL.rotation.z, -extraLean - 0.08, 1 - Math.exp(-6 * dt));
+  armR.rotation.z = lerp(armR.rotation.z, -extraLean + 0.08, 1 - Math.exp(-6 * dt));
+
+  // ---- legs: compress briefly on landing, tuck forward in air
+  const legTarget = S.grounded ? 0.5 + landImpactT * 0.20 : 0.72;
+  legL.rotation.x = lerp(legL.rotation.x, legTarget, 1 - Math.exp(-5 * dt));
+  legR.rotation.x = lerp(legR.rotation.x, legTarget, 1 - Math.exp(-5 * dt));
+
+  // ---- visual suspension travel
+  // S.jolt is already computed by step() as a visual-only quantity that
+  // must never feed back into physics — we read it here for rendering only.
+  const suspCompR = S.jolt * 0.50;
+  // Front fork dips a little extra under braking (weight transfer).
+  const suspCompF = S.jolt * 0.50 + brakeIn * 0.055;
+  suspGroupR.position.y = lerp(suspGroupR.position.y, -suspCompR, 1 - Math.exp(-22 * dt));
+  suspGroupF.position.y = lerp(suspGroupF.position.y, -suspCompF, 1 - Math.exp(-22 * dt));
+
+  // ---- front-wheel steer angle (visual only — physics yaw unchanged)
+  steerGroup.rotation.y = lerp(steerGroup.rotation.y, steerIn * 0.28, 1 - Math.exp(-10 * dt));
+
+  // ---- chassis pitch: nose rises at takeoff (high S.climb), dips under
+  // braking, and briefly nods on landing. All reads on visual-side state.
+  const wantChassisPitch = brakeIn * -0.044
+    + clamp(S.climb / 20, 0, 1) * 0.052
+    - landImpactT * 0.030;
+  chassisInner.rotation.x = lerp(chassisInner.rotation.x, wantChassisPitch, 1 - Math.exp(-8 * dt));
 
   // ---- dust
   for (let i = 0; i < DUST_N; i++) {
