@@ -51,7 +51,7 @@ function fbm(x, y, oct) {
 }
 
 /* ------------------------------------------------------------ constants */
-const BUILD = 'v0.14 · AI field';  // shown on the title screen, so you can tell
+const BUILD = 'v0.15 · AI recovery';  // shown on the title screen, so you can tell
                                    // at a glance whether a deploy actually landed
 /* Phones get a lighter build of the world. Decided once, up front, because the
    terrain mesh is baked at load. */
@@ -1252,6 +1252,7 @@ for (let i = 0; i < NUM_AI; i++) {
     mistakeActive: false,
     mistakeEndAt: 0,
     mistakeSteer: 0,   // signed lateral bias injected during the mistake
+    offTrackTime: 0,   // sustained excursion before recovery to centreline
     /* Sector gate — mirrors the player's sectorSeen in checkCheckpoint so that
        a grid-start along near trackLen does not count as a lap crossing before
        the AI has actually completed one full lap. */
@@ -1280,6 +1281,7 @@ function resetAI() {
     ai.topSpeedEff = ai.topSpeedBase;
     ai.nextMistakeAt = 3 + hash2(i * 3 + 1, 17) * 9;
     ai.mistakeActive = false; ai.mistakeSteer = 0;
+    ai.offTrackTime = 0;
     ai.sectorSeen = false;
     ai.mesh.position.copy(ai.pos);
     ai.mesh.position.y -= RIDE_H;
@@ -1304,7 +1306,10 @@ function stepAI(ai, dt) {
   const wobble    = ai.mistakeActive ? ai.mistakeSteer * 0.7 : 0;
 
   /* Steer toward track centreline, blended by cornering ability. */
-  const centerErr = clamp(-tp_s / TRACK_HALF, -1, 1);
+  /* Positive s is right of travel and positive steerIn reduces yaw (left),
+     so the correction must have the same sign as s. The old negative sign
+     made every excursion self-amplifying: drift right, steer farther right. */
+  const centerErr = clamp(tp_s / TRACK_HALF, -1, 1);
   const steerIn   = clamp(centerErr * cornerEff + wobble, -1, 1);
 
   const fwX = Math.sin(ai.yaw), fwZ = Math.cos(ai.yaw);
@@ -1515,7 +1520,33 @@ function updateAI(dt) {
 
       /* Update ai.along from actual position — copy along immediately. */
       const _qp = trackProfile(ai.pos.x, ai.pos.z);
-      const newAlong = _qp ? _qp.along : ai.along;
+      const profAlong = _qp ? _qp.along : ai.along;
+      const profOff = _qp ? _qp.off : Infinity;
+
+      /* Only accept plausible forward movement. Far-off riders can be nearest
+         to an unrelated section of the loop; crediting that nearest section
+         let stranded riders jump through the standings and even finish. */
+      let forwardDelta = profAlong - prevAlong;
+      if (forwardDelta < -trackLen * 0.5) forwardDelta += trackLen;
+      if (forwardDelta >  trackLen * 0.5) forwardDelta -= trackLen;
+      const maxAdvance = MAX_SPEED * 1.35 * dt + 8;
+      const progressValid = profOff < TRACK_HALF + BERM_W * 1.6 &&
+        forwardDelta > -6 && forwardDelta < maxAdvance;
+      const newAlong = progressValid ? profAlong : ai.along;
+
+      /* Recover sustained excursions before a rider reaches the horizon.
+         Preserve its last legitimate race distance, but charge a speed loss. */
+      if (profOff > TRACK_HALF + BERM_W * 1.8) ai.offTrackTime += dt;
+      else ai.offTrackTime = Math.max(0, ai.offTrackTime - dt * 2);
+      if (!_qp || ai.offTrackTime > 0.55) {
+        const sp = gridSpawn(ai.along, 0);
+        const recoverySpeed = Math.min(Math.hypot(ai.vel.x, ai.vel.z), MAX_SPEED * 0.45);
+        ai.pos.set(sp.x, terrainH(sp.x, sp.z) + RIDE_H, sp.z);
+        ai.yaw = sp.yaw;
+        ai.vel.set(Math.sin(sp.yaw) * recoverySpeed, 0, Math.cos(sp.yaw) * recoverySpeed);
+        ai.grounded = true;
+        ai.offTrackTime = 0;
+      }
 
       /* Sector gate — same 45–75 % window as the player's checkCheckpoint. */
       if (newAlong > trackLen * 0.45 && newAlong < trackLen * 0.75) ai.sectorSeen = true;
