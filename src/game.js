@@ -27,7 +27,9 @@ function smoothstep(e0, e1, x) {
 
 /* ---------------------------------------------------------------- noise */
 function hash2(i, j) {
-  let n = (i * 374761393 + j * 668265263) | 0;
+  // SEED_K folds the selected course's seed into every hash, so each National
+  // course gets its own terrain, layout and scenery from the same generator
+  let n = (i * 374761393 + j * 668265263 + SEED_K) | 0;
   n = (n ^ (n >> 13)) | 0;
   n = Math.imul(n, 1274126177) | 0;
   return ((n ^ (n >> 16)) >>> 0) / 4294967295;
@@ -51,11 +53,120 @@ function fbm(x, y, oct) {
 }
 
 /* ------------------------------------------------------------ constants */
-const BUILD = 'v0.15 · AI recovery';  // shown on the title screen, so you can tell
-                                   // at a glance whether a deploy actually landed
+const BUILD = 'v0.16 · National calendar';  // shown on the title screen, so you can
+                                   // tell at a glance whether a deploy actually landed
 /* Phones get a lighter build of the world. Decided once, up front, because the
    terrain mesh is baked at load. */
 const MOBILE = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 820;
+
+/* --------------------------------------------------- National calendar */
+/* National is an event family, not one race. Each course definition is data
+   only — the same engine builds a different world from it: seed (feeds every
+   hash2 call, so layout, terrain and scenery all change), spline parameters,
+   relief scaling, the feature plan, laps, lighting palette and scenery mix.
+   The world is baked once at load, so switching course means a reload with
+   the choice stored under the dustbowl. localStorage prefix. */
+const COURSES = [
+  {
+    id: 'flats', name: 'Dustbowl Flats', tag: 'the classic',
+    blurb: 'Where the series started. Rolling desert, banked corners, a lap that builds from a gentle opener to the big one.',
+    seed: 0, laps: 3, cpCount: 8, radiusBase: 165, radiusVar: 95, wobble: 0.38,
+    relief: 1, rocks: 1, shrubs: 1,
+    plan: [
+      { kind: 'table', len: 30, h: 1.9 },
+      { kind: 'whoops', len: 46, wave: 16, h: 1.3 },
+      { kind: 'table', len: 29, h: 2.6 },
+      { kind: 'whoops', len: 50, wave: 17, h: 1.4 },
+      { kind: 'tabletop', len: 36, h: 3.6 },
+      { kind: 'ripples', len: 46, wave: 4.2, h: 0.62 },
+      { kind: 'table', len: 30, h: 2.2 },
+      { kind: 'whoops', len: 46, wave: 16, h: 1.35 },
+      { kind: 'table', len: 27, h: 3.0 },
+      { kind: 'whoops', len: 48, wave: 17, h: 1.45 },
+      { kind: 'table', len: 27, h: 4.2 }
+    ],
+    palette: {
+      skyTop: 0x1d3a63, skyMid: 0xc07a72, skyHaze: 0xf6b077, fog: 0xe8ac78,
+      sun: 0xffd6a0, sunInt: 2.5, hemiSky: 0x9dbbe8, hemiGnd: 0x7d5230, hemiInt: 0.6,
+      sand: 0xe3be86, ochre: 0xb4783c, scrub: 0x8b8a4e
+    }
+  },
+  {
+    id: 'rimrock', name: 'Rimrock Canyon', tag: 'big hits',
+    blurb: 'Carved through harder country — taller relief, rock everywhere, and a lap built around tabletops you either clear or case.',
+    seed: 7, laps: 3, cpCount: 9, radiusBase: 150, radiusVar: 110, wobble: 0.44,
+    relief: 1.3, rocks: 1.8, shrubs: 0.55,
+    plan: [
+      { kind: 'table', len: 29, h: 2.2 },
+      { kind: 'whoops', len: 44, wave: 16, h: 1.3 },
+      { kind: 'tabletop', len: 34, h: 3.4 },
+      { kind: 'ripples', len: 42, wave: 4.2, h: 0.6 },
+      { kind: 'table', len: 28, h: 3.0 },
+      { kind: 'whoops', len: 46, wave: 17, h: 1.4 },
+      { kind: 'tabletop', len: 38, h: 4.0 },
+      { kind: 'whoops', len: 44, wave: 16, h: 1.3 },
+      { kind: 'table', len: 26, h: 4.6 }
+    ],
+    palette: {
+      skyTop: 0x2a3550, skyMid: 0xb06858, skyHaze: 0xe89a68, fog: 0xd89468,
+      sun: 0xffc890, sunInt: 2.3, hemiSky: 0x9dabd0, hemiGnd: 0x774a28, hemiInt: 0.6,
+      sand: 0xd8a878, ochre: 0xa05830, scrub: 0x7f7a44
+    }
+  },
+  {
+    id: 'mesa', name: 'Sunset Mesa', tag: 'flow track',
+    blurb: 'A fast, open two-lapper under a dusk sky. Long swells and rollers reward rhythm over bravery — hold the flow and it feels endless.',
+    seed: 3, laps: 2, cpCount: 7, radiusBase: 190, radiusVar: 80, wobble: 0.3,
+    relief: 0.78, rocks: 0.7, shrubs: 1.3,
+    plan: [
+      { kind: 'whoops', len: 56, wave: 19, h: 1.35 },
+      { kind: 'table', len: 30, h: 2.0 },
+      { kind: 'whoops', len: 60, wave: 20, h: 1.5 },
+      { kind: 'table', len: 30, h: 2.5 },
+      { kind: 'whoops', len: 54, wave: 18, h: 1.4 },
+      { kind: 'ripples', len: 40, wave: 4.4, h: 0.55 },
+      { kind: 'whoops', len: 58, wave: 19, h: 1.45 },
+      { kind: 'table', len: 28, h: 3.2 }
+    ],
+    palette: {
+      skyTop: 0x241d4e, skyMid: 0xa04a6a, skyHaze: 0xf08a5a, fog: 0xc87a62,
+      sun: 0xff9e70, sunInt: 2.0, hemiSky: 0x8a7ec8, hemiGnd: 0x6a4630, hemiInt: 0.7,
+      sand: 0xd4a87e, ochre: 0x9c6038, scrub: 0x77704a
+    }
+  },
+  {
+    id: 'noon', name: 'High Noon Raceway', tag: 'the grinder',
+    blurb: 'Four laps in flat hard light on a tight, chewed-up circuit. Two braking-bump sections per lap — mistakes compound here.',
+    seed: 11, laps: 4, cpCount: 8, radiusBase: 145, radiusVar: 75, wobble: 0.46,
+    relief: 0.92, rocks: 1.1, shrubs: 0.9,
+    plan: [
+      { kind: 'table', len: 28, h: 2.0 },
+      { kind: 'ripples', len: 44, wave: 4.0, h: 0.64 },
+      { kind: 'whoops', len: 44, wave: 15, h: 1.3 },
+      { kind: 'table', len: 28, h: 2.6 },
+      { kind: 'whoops', len: 46, wave: 16, h: 1.35 },
+      { kind: 'ripples', len: 40, wave: 4.4, h: 0.58 },
+      { kind: 'tabletop', len: 34, h: 3.2 },
+      { kind: 'whoops', len: 44, wave: 16, h: 1.3 },
+      { kind: 'table', len: 26, h: 3.4 }
+    ],
+    palette: {
+      skyTop: 0x2f6bb8, skyMid: 0x8fb4d8, skyHaze: 0xe8d8b0, fog: 0xdfd2ae,
+      sun: 0xfff2d0, sunInt: 2.9, hemiSky: 0xbcd4f0, hemiGnd: 0x8a6a40, hemiInt: 0.65,
+      sand: 0xecd09c, ochre: 0xc08a50, scrub: 0x94964f
+    }
+  }
+];
+let COURSE_IDX = 0;
+try {
+  const v = localStorage.getItem('dustbowl.course');
+  const ci = COURSES.findIndex((c) => c.id === JSON.parse(v));
+  if (ci >= 0) COURSE_IDX = ci;
+} catch (e) { /* private mode or unset — first course */ }
+const COURSE = COURSES[COURSE_IDX];
+const SEED_K = Math.imul(COURSE.seed | 0, 1013904223) | 0;
+const RACE_LAPS = COURSE.laps;
+const PAL = COURSE.palette;
 
 /* A modern phone held a locked 60fps at the cautious settings, so this dials
    the detail back up. The FPS readout is the test: if it still never leaves 60,
@@ -89,9 +200,10 @@ function rampHeight(x, z) {
 }
 
 function baseHeight(x, z) {
-  let h = (fbm(x * 0.0016, z * 0.0016, 5) - 0.5) * 88;
-  h += (fbm(x * 0.0062 + 91, z * 0.0062 - 37, 3) - 0.5) * 26;
-  h += (fbm(x * 0.017 + 43, z * 0.017 - 12, 2) - 0.5) * 7;
+  // relief scales the landform per course: canyon country vs. open flats
+  let h = (fbm(x * 0.0016, z * 0.0016, 5) - 0.5) * 88 * COURSE.relief;
+  h += (fbm(x * 0.0062 + 91, z * 0.0062 - 37, 3) - 0.5) * 26 * COURSE.relief;
+  h += (fbm(x * 0.017 + 43, z * 0.017 - 12, 2) - 0.5) * 7 * COURSE.relief;
   h += (fbm(x * 0.028 + 11, z * 0.028 + 5, 2) - 0.5) * 1.4;
   const r = Math.hypot(x, z);
   // low canyon rim keeps the rider in the bowl without walling off the sky
@@ -262,7 +374,9 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-const SKY_TOP = 0x1d3a63, SKY_HAZE = 0xf6b077, FOG_COL = 0xe8ac78;
+// lighting and haze come from the course palette — dusk on one round,
+// hard noon light on another, same engine underneath
+const SKY_TOP = PAL.skyTop, SKY_HAZE = PAL.skyHaze, FOG_COL = PAL.fog;
 scene.fog = new THREE.Fog(FOG_COL, MOBILE ? 300 : 320, MOBILE ? 1300 : 1500);
 
 const CAM_FAR = MOBILE ? 2200 : 2600;
@@ -278,7 +392,7 @@ camera.position.set(0, 8, -14);
   const pos = g.attributes.position;
   const col = new Float32Array(pos.count * 3);
   const cTop = new THREE.Color().setHex(SKY_TOP);
-  const cMid = new THREE.Color().setHex(0xc07a72);
+  const cMid = new THREE.Color().setHex(PAL.skyMid);
   const cHaze = new THREE.Color().setHex(SKY_HAZE);
   const tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
@@ -294,7 +408,7 @@ camera.position.set(0, 8, -14);
 
 /* --------------------------------------------------------------- lights */
 const sunDir = new THREE.Vector3(-0.55, 0.52, 0.65).normalize();
-const sun = new THREE.DirectionalLight(0xffd6a0, 2.5);
+const sun = new THREE.DirectionalLight(PAL.sun, PAL.sunInt);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -22; sun.shadow.camera.right = 22;
@@ -302,7 +416,7 @@ sun.shadow.camera.top = 22; sun.shadow.camera.bottom = -22;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 120;
 sun.shadow.bias = -0.0016;
 scene.add(sun, sun.target);
-scene.add(new THREE.HemisphereLight(0x9dbbe8, 0x7d5230, 0.6));
+scene.add(new THREE.HemisphereLight(PAL.hemiSky, PAL.hemiGnd, PAL.hemiInt));
 
 /* sun disc */
 {
@@ -316,16 +430,17 @@ scene.add(new THREE.HemisphereLight(0x9dbbe8, 0x7d5230, 0.6));
 }
 
 /* -------------------------------------------------------- course layout */
-const CP_COUNT = 8;
+/* All layout knobs come from the selected COURSE: control-point count, ring
+   radius and its spread, and how far each point wobbles off the ideal ring.
+   Together with the seeded hash they give each National round its own line. */
+const CP_COUNT = COURSE.cpCount;
 const checkpoints = [];
 {
-  let seedA = 0.4;
   for (let i = 0; i < CP_COUNT; i++) {
-    const a = (i / CP_COUNT) * Math.PI * 2 + (hash2(i * 7 + 3, 11) - 0.5) * 0.38;
-    const rad = 165 + hash2(i * 13 + 5, 29) * 95;
+    const a = (i / CP_COUNT) * Math.PI * 2 + (hash2(i * 7 + 3, 11) - 0.5) * COURSE.wobble;
+    const rad = COURSE.radiusBase + hash2(i * 13 + 5, 29) * COURSE.radiusVar;
     const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
     checkpoints.push({ x, z, y: 0, a });
-    seedA = a;
   }
   /* No ramps on the Baja course. They sat beside the racing line, so going
      round them was always faster — they were an obstacle, not a reward. The
@@ -409,26 +524,12 @@ const checkpoints = [];
      size, four sets of whoops between them, and exactly one chatter section.
      Spaced evenly round the lap and nudged clear of the banked corners, which
      stay clean so they can actually be raced. */
-  const plan = [
-    /* Jump size is set by height over a roughly fixed length — that ratio is
-       what decides how hard you get launched. Stretching the length as well
-       just flattens the crest out again. */
-    /* Two different jobs, kept clearly apart:
-         rollers — long, shallow undulation as a run-up to a jump. Should flow.
-         ripples — one short, sharp, chewed-up braking-bump section that
-                   genuinely rattles the bike. Exactly one per lap. */
-    { kind: 'table', len: 30, h: 1.9 },      // gentle opener
-    { kind: 'whoops', len: 46, wave: 16, h: 1.3 },
-    { kind: 'table', len: 29, h: 2.6 },
-    { kind: 'whoops', len: 50, wave: 17, h: 1.4 },
-    { kind: 'tabletop', len: 36, h: 3.6 },   // flat deck — clear it or case it
-    { kind: 'ripples', len: 46, wave: 4.2, h: 0.62 },   // the only rough patch
-    { kind: 'table', len: 30, h: 2.2 },
-    { kind: 'whoops', len: 46, wave: 16, h: 1.35 },
-    { kind: 'table', len: 27, h: 3.0 },
-    { kind: 'whoops', len: 48, wave: 17, h: 1.45 },
-    { kind: 'table', len: 27, h: 4.2 }       // the big one
-  ];
+  /* Jump size is set by height over a roughly fixed length — that ratio is
+     what decides how hard you get launched. Stretching the length as well
+     just flattens the crest out again. The plan itself is authored per course
+     in the COURSES catalog: Flats builds to one big finisher, Rimrock stacks
+     tabletops, Mesa is all flow, High Noon doubles up the chatter. */
+  const plan = COURSE.plan;
   const slot = trackLen / plan.length;
   for (let i = 0; i < plan.length; i++) {
     let at = 24 + i * slot;
@@ -443,10 +544,10 @@ const checkpoints = [];
 }
 
 /* ------------------------------------------------------------- terrain */
-const SAND = new THREE.Color().setHex(0xe3be86);
-const OCHRE = new THREE.Color().setHex(0xb4783c);
+const SAND = new THREE.Color().setHex(PAL.sand);
+const OCHRE = new THREE.Color().setHex(PAL.ochre);
 const DIRT = new THREE.Color().setHex(0x6d4a2c);
-const SCRUB = new THREE.Color().setHex(0x8b8a4e);
+const SCRUB = new THREE.Color().setHex(PAL.scrub);
 const ROCK = new THREE.Color().setHex(0x9a8a7c);
 
 // a redder, darker clay than the surrounding sand — the racing line has to read
@@ -670,9 +771,10 @@ function scatter(geo, mat, count, scaleMin, scaleMax, maxSlope, clearance) {
   scene.add(mesh);
   return mesh;
 }
-// far fewer rocks than before, and none of them anywhere near the road
-scatter(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: 0x9a8977 }), MOBILE ? 70 : 110, 0.7, 3.2, 0.55, 22);
-scatter(new THREE.ConeGeometry(0.8, 1.8, 5), new THREE.MeshLambertMaterial({ color: 0x7d8348 }), MOBILE ? 170 : 300, 0.5, 1.3, 0.4, 13);
+// far fewer rocks than before, and none of them anywhere near the road;
+// the course scales the mix — canyon rounds get rock, flow rounds get scrub
+scatter(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: 0x9a8977 }), Math.round((MOBILE ? 70 : 110) * COURSE.rocks), 0.7, 3.2, 0.55, 22);
+scatter(new THREE.ConeGeometry(0.8, 1.8, 5), new THREE.MeshLambertMaterial({ color: 0x7d8348 }), Math.round((MOBILE ? 170 : 300) * COURSE.shrubs), 0.5, 1.3, 0.4, 13);
 
 /* ------------------------------------------------- start / finish gantry */
 {
@@ -2005,11 +2107,19 @@ function drawMap() {
 }
 
 /* --------------------------------------------------------------- camera */
-let camMode = 0;
-const CAM_NAMES = ['CHASE', 'CLOSE', 'HELI'];
+/* The overhead camera is one of this game's defining features, so the choice
+   is surfaced as a button on the title screen and remembered between visits —
+   it is available on every course, not tuned per track. */
+let camMode = clamp(loadPref('camera', 0) | 0, 0, 2);
+const CAM_NAMES = ['CHASE', 'CLOSE', 'OVERHEAD'];
+function syncCamLabel() {
+  $('#camName').textContent = CAM_NAMES[camMode];
+  for (const el of document.querySelectorAll('.camState')) el.textContent = CAM_NAMES[camMode];
+}
 function cycleCam() {
   camMode = (camMode + 1) % 3;
-  $('#camName').textContent = CAM_NAMES[camMode];
+  savePref('camera', camMode);
+  syncCamLabel();
 }
 const camTarget = new THREE.Vector3();
 const camWanted = new THREE.Vector3();
@@ -2071,8 +2181,8 @@ scene.add(arrowPivot);
 
 /* A race is start line to finish line, not a scavenger hunt for gates. Laps are
    counted by crossing the start/finish plane going forwards, with the sector
-   check stopping you from reversing over it to farm laps. */
-const RACE_LAPS = 3;
+   check stopping you from reversing over it to farm laps.
+   RACE_LAPS is set per course, up in the National calendar. */
 let lastAlong = 0, sectorSeen = false;
 
 function resetGateTracking() {
@@ -2316,6 +2426,7 @@ let resultsUp = false;
 function showResults() {
   resultsUp = true;
   killAudio();
+  $('#resultsEyebrow').textContent = COURSE.name + ' · ' + RACE_LAPS + ' laps';
   $('#rTotal').textContent = fmtTime(G.raceTime);
   $('#rBest').textContent = G.best === null ? '—:——' : fmtTime(G.best);
 
@@ -2396,6 +2507,36 @@ for (const id of ['#throttleBtn', '#throttleBtn2']) {
   $(id).addEventListener('click', () => setThrottleMode(!autoThrottle));
 }
 setThrottleMode(autoThrottle);
+$('#camBtn').addEventListener('click', cycleCam);
+syncCamLabel();
+
+/* ------------------------------------------------- event selection shell */
+/* The world is baked at load, so racing a different National round means
+   storing the pick and reloading; the loading card explains the wait. Picking
+   the course you're already on just reaffirms the selection. */
+function selectCourse(i) {
+  if (i === COURSE_IDX) return;
+  savePref('course', COURSES[i].id);
+  const loading = $('#loading');
+  loading.textContent = 'Grading ' + COURSES[i].name + '…';
+  loading.classList.remove('gone');
+  setTimeout(() => location.reload(), 60);
+}
+{
+  const list = $('#courseList');
+  COURSES.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'course' + (i === COURSE_IDX ? ' sel' : '');
+    b.innerHTML = '<span class="cname">' + c.name + '</span>'
+      + '<span class="cmeta">Round ' + (i + 1) + ' · ' + c.laps + ' laps · ' + c.tag + '</span>';
+    b.addEventListener('click', () => selectCourse(i));
+    list.appendChild(b);
+  });
+  $('#roundTag').textContent = 'Round ' + (COURSE_IDX + 1) + ' of ' + COURSES.length + ' — ' + COURSE.name;
+  $('#courseBlurb').textContent = COURSE.blurb;
+  elLap.textContent = '1/' + RACE_LAPS;
+}
 $('#sndBtn').addEventListener('click', () => { initAudio(); toggleAudio(); if (audioOn) wakeAudio(); });
 
 // the title screen idles on the same loop as the game

@@ -361,6 +361,46 @@
   }
   .chip.strong:hover { background: var(--sand); color: var(--ink); }
   body.touch .chip { padding: 10px 14px; font-size: 10px; }
+  /* National event calendar — course cards on the title plate */
+  .courses {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin: 0 0 20px;
+  }
+  button.course {
+    background: rgba(227,190,134,.06);
+    border: 1px solid var(--line);
+    color: var(--sand);
+    text-align: left;
+    padding: 10px 12px;
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+    transition: background .15s ease, border-color .15s ease, transform .12s ease;
+  }
+  button.course:hover { background: rgba(227,190,134,.14); }
+  button.course .cname {
+    display: block;
+    font-family: var(--display);
+    font-size: 19px;
+    letter-spacing: .04em;
+    line-height: 1;
+  }
+  button.course .cmeta {
+    display: block;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: rgba(236,229,216,.55);
+    margin-top: 4px;
+  }
+  button.course.sel {
+    background: rgba(255,176,32,.16);
+    border-color: var(--amber);
+  }
+  button.course.sel .cname { color: var(--amber); }
+  button.course.sel .cmeta { color: rgba(236,229,216,.75); }
+
   .startrow { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
   .hint { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: rgba(236,229,216,.45); }
   .build { color: var(--ochre); margin-left: 8px; white-space: nowrap; }
@@ -539,6 +579,9 @@
     h1 { font-size: clamp(32px, 8vh, 64px); margin: 6px 0 4px; }
     #plate p.blurb { display: none; }
     .keys { padding: 11px 0; margin-bottom: 15px; gap: 6px 18px; }
+    .courses { gap: 6px; margin-bottom: 14px; }
+    button.course { padding: 7px 10px; }
+    button.course .cname { font-size: 16px; }
     .startrow button { font-size: 20px; padding: 9px 24px; }
     .startrow button.ghost { font-size: 15px; padding: 8px 16px; }
   }
@@ -628,11 +671,13 @@
 
 <div class="overlay" id="title">
   <div id="plate">
+    <p class="eyebrow">National series · <span id="roundTag"></span></p>
     <h1>Dustbowl</h1>
-    <p class="blurb">
+    <p class="blurb" id="courseBlurb">
       Hold your line through the dust, carry speed through the turns and chase the
       fastest time.
     </p>
+    <div class="courses" id="courseList"></div>
     <div class="keys">
       <div><kbd>W</kbd><kbd>↑</kbd> Throttle</div>
       <div><kbd>S</kbd><kbd>↓</kbd> Brake</div>
@@ -645,6 +690,7 @@
     <div class="startrow">
       <button id="startBtn" type="button">Drop in</button>
       <button id="throttleBtn" class="ghost" type="button">Throttle: <span class="throttleState">AUTO</span></button>
+      <button id="camBtn" class="ghost" type="button">Camera: <span class="camState">CHASE</span></button>
     </div>
     <p class="hint" style="margin-top:14px">
       Keyboard or touch · auto-throttle drives for you, you steer and brake
@@ -655,7 +701,7 @@
 
 <div class="overlay" id="results">
   <div id="plate">
-    <p class="eyebrow">Race complete · 3 laps</p>
+    <p class="eyebrow" id="resultsEyebrow">Race complete</p>
     <h1>Finished<span class="bang">!</span></h1>
     <div class="results">
       <div class="bigstat">
@@ -672,7 +718,7 @@
     <table id="lapTable"><tbody id="lapRows"></tbody></table>
     <div class="startrow">
       <button id="againBtn" type="button">Race again</button>
-      <button id="resultsQuit" class="ghost" type="button">Back to title</button>
+      <button id="resultsQuit" class="ghost" type="button">Back to events</button>
     </div>
   </div>
 </div>
