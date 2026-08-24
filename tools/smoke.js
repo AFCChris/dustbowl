@@ -72,13 +72,76 @@ function runCourse(courseId) {
   if (!dbg) throw new Error(courseId + ': __dbg missing');
   if (!(dbg.trackLen > 500)) throw new Error(courseId + ': bad trackLen ' + dbg.trackLen);
   if (!dbg.features.length) throw new Error(courseId + ': no features');
+  if (dbg.checkpoints.length < 8) throw new Error(courseId + ': too few authored points');
+  if (dbg.checkpoints.length !== dbg.COURSE.sections.length) {
+    throw new Error(courseId + ': layout/section count mismatch');
+  }
+  for (const p of dbg.trackPts) {
+    const radius = Math.hypot(p.x, p.z);
+    if (radius > 340) {
+      throw new Error(courseId + ': centreline leaves play bowl at radius ' + radius.toFixed(1));
+    }
+  }
+  for (const sec of dbg.COURSE.sections) {
+    if (!(sec.cornerRadius > 0 && sec.straightLength > 0 && isFinite(sec.elevation) &&
+      sec.braking >= 0 && sec.braking <= 1 && sec.aiSpeed > 0 && Array.isArray(sec.jumps))) {
+      throw new Error(courseId + ': invalid authored section metadata');
+    }
+  }
+  // The authored centreline must remain a simple loop. An infield may fold
+  // close beside itself, but road geometry may never actually intersect.
+  const pts = dbg.trackPts;
+  function crosses(a, b, c, d) {
+    const orient = (p, q, r) => (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
+    const abC = orient(a, b, c), abD = orient(a, b, d);
+    const cdA = orient(c, d, a), cdB = orient(c, d, b);
+    return abC * abD < -1e-7 && cdA * cdB < -1e-7;
+  }
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    for (let j = i + 2; j < pts.length; j++) {
+      if (i === 0 && j === pts.length - 1) continue;
+      const c = pts[j], d = pts[(j + 1) % pts.length];
+      if (crosses(a, b, c, d)) {
+        throw new Error(courseId + ': self-intersection at segments ' + i + '/' + j);
+      }
+    }
+  }
   // sanity: terrain is finite everywhere near the track
   for (let i = 0; i < dbg.trackPts.length; i += 7) {
     const p = dbg.trackPts[i];
     const h = dbg.terrainH(p.x, p.z);
     if (!isFinite(h)) throw new Error(courseId + ': non-finite terrain at ' + i);
   }
-  // drive the sim: start, hold gas, update 20 simulated seconds
+  // Validate a complete synthetic lap through the baked profile. Sampling just
+  // off-centre catches field holes while the sector/wrap assertions exercise
+  // the same progress contract used by player and AI lap gating.
+  let sectorSeen = false, completedLaps = 0, prevAlong = 0;
+  for (let lap = 0; lap < dbg.RACE_LAPS; lap++) {
+    for (let i = 1; i <= dbg.trackPts.length; i++) {
+      const p = dbg.trackPts[i % dbg.trackPts.length];
+      const prof = dbg.trackProfile(p.x, p.z);
+      if (!prof || prof.off > 3) {
+        throw new Error(courseId + ': profile gap at ' + i + ' (' +
+          p.x.toFixed(1) + ',' + p.z.toFixed(1) + '; off=' + (prof ? prof.off.toFixed(1) : 'null') + ')');
+      }
+      // The exact start point is shared by the opening and closing segments;
+      // trackProfile may correctly describe it as trackLen. For the synthetic
+      // forward crossing, normalize that final sample to the new lap's zero.
+      const along = i === dbg.trackPts.length ? 0 : prof.along;
+      if (along > dbg.trackLen * 0.45 && along < dbg.trackLen * 0.75) sectorSeen = true;
+      if (prevAlong > dbg.trackLen * 0.8 && along < dbg.trackLen * 0.2 && sectorSeen) {
+        completedLaps++;
+        sectorSeen = false;
+      }
+      prevAlong = along;
+    }
+  }
+  if (completedLaps !== dbg.RACE_LAPS) {
+    throw new Error(courseId + ': synthetic lap count ' + completedLaps);
+  }
+
+  // drive the live sim: start, hold gas, update 20 simulated seconds
   dbg.startGame();
   dbg.keys.KeyW = true;
   for (let i = 0; i < 20 * 60; i++) dbg.update(1 / 60);
@@ -87,14 +150,20 @@ function runCourse(courseId) {
     id: courseId, trackLen: Math.round(dbg.trackLen),
     laps: dbg.RACE_LAPS, features: dbg.features.length,
     riderMoved: dbg.S.pos.length() > 1, onCourse: !!prof,
-    clock: dbg.clock.toFixed(1),
+    clock: dbg.clock.toFixed(1), completedLaps,
   };
 }
 
+const silhouettes = new Set();
 for (const id of ['flats', 'rimrock', 'mesa', 'noon', 'not-a-course']) {
   const r = runCourse(id);
+  if (id !== 'not-a-course') {
+    const dbgShape = r.trackLen + ':' + r.features;
+    silhouettes.add(dbgShape);
+  }
   console.log(JSON.stringify(r));
 }
+if (silhouettes.size !== 4) throw new Error('course signatures are not distinct');
 console.log('smoke OK');
 process.exit(0);   // the game's audio watchdog setInterval would keep node alive
 

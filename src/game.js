@@ -53,7 +53,7 @@ function fbm(x, y, oct) {
 }
 
 /* ------------------------------------------------------------ constants */
-const BUILD = 'v0.16 · National calendar';  // shown on the title screen, so you can
+const BUILD = 'v0.17 · Authored Nationals';  // shown on the title screen, so you can
                                    // tell at a glance whether a deploy actually landed
 /* Phones get a lighter build of the world. Decided once, up front, because the
    terrain mesh is baked at load. */
@@ -61,30 +61,34 @@ const MOBILE = matchMedia('(pointer: coarse)').matches || Math.min(screen.width,
 
 /* --------------------------------------------------- National calendar */
 /* National is an event family, not one race. Each course definition is data
-   only — the same engine builds a different world from it: seed (feeds every
-   hash2 call, so layout, terrain and scenery all change), spline parameters,
-   relief scaling, the feature plan, laps, lighting palette and scenery mix.
+   only — the same engine builds a different world from it: an authored,
+   normalized centreline, per-section race intent, relief, laps, lighting and
+   scenery. A section runs from layout point i to point i+1. Its corner radius
+   and straight length shape the spline tangents; elevation offsets the graded
+   road; braking and aiSpeed tune opponent pace; jump zones place track features.
    The world is baked once at load, so switching course means a reload with
    the choice stored under the dustbowl. localStorage prefix. */
 const COURSES = [
   {
     id: 'flats', name: 'Dustbowl Flats', tag: 'the classic',
     blurb: 'Where the series started. Rolling desert, banked corners, a lap that builds from a gentle opener to the big one.',
-    seed: 0, laps: 3, cpCount: 8, radiusBase: 165, radiusVar: 95, wobble: 0.38,
-    relief: 1, rocks: 1, shrubs: 1,
-    plan: [
-      { kind: 'table', len: 30, h: 1.9 },
-      { kind: 'whoops', len: 46, wave: 16, h: 1.3 },
-      { kind: 'table', len: 29, h: 2.6 },
-      { kind: 'whoops', len: 50, wave: 17, h: 1.4 },
-      { kind: 'tabletop', len: 36, h: 3.6 },
-      { kind: 'ripples', len: 46, wave: 4.2, h: 0.62 },
-      { kind: 'table', len: 30, h: 2.2 },
-      { kind: 'whoops', len: 46, wave: 16, h: 1.35 },
-      { kind: 'table', len: 27, h: 3.0 },
-      { kind: 'whoops', len: 48, wave: 17, h: 1.45 },
-      { kind: 'table', len: 27, h: 4.2 }
+    seed: 0, laps: 3, layoutScale: [286, 238],
+    layout: [
+      [-0.90,-0.15],[-0.70,-0.70],[-0.08,-0.88],[0.58,-0.72],[0.92,-0.20],
+      [0.78,0.42],[0.28,0.80],[-0.36,0.86],[-0.86,0.50]
     ],
+    sections: [
+      { cornerRadius: 52, straightLength: 92, elevation: 0,  braking: 0.10, aiSpeed: 1.00, jumps: [{ kind: 'table', at: 0.35, len: 30, h: 1.9 }] },
+      { cornerRadius: 68, straightLength: 126,elevation: -4, braking: 0.05, aiSpeed: 1.03, jumps: [{ kind: 'whoops', at: 0.36, len: 46, wave: 16, h: 1.3 }] },
+      { cornerRadius: 74, straightLength: 132,elevation: 3,  braking: 0.00, aiSpeed: 1.05, jumps: [{ kind: 'table', at: 0.48, len: 29, h: 2.6 }] },
+      { cornerRadius: 48, straightLength: 104,elevation: 8,  braking: 0.20, aiSpeed: 0.94, jumps: [{ kind: 'whoops', at: 0.42, len: 50, wave: 17, h: 1.4 }] },
+      { cornerRadius: 55, straightLength: 118,elevation: 12, braking: 0.12, aiSpeed: 0.98, jumps: [{ kind: 'tabletop', at: 0.40, len: 36, h: 3.6 }] },
+      { cornerRadius: 76, straightLength: 134,elevation: 6,  braking: 0.00, aiSpeed: 1.04, jumps: [{ kind: 'ripples', at: 0.34, len: 46, wave: 4.2, h: 0.62 }] },
+      { cornerRadius: 70, straightLength: 122,elevation: 1,  braking: 0.06, aiSpeed: 1.02, jumps: [{ kind: 'table', at: 0.44, len: 30, h: 2.2 }] },
+      { cornerRadius: 50, straightLength: 112,elevation: -3, braking: 0.18, aiSpeed: 0.95, jumps: [{ kind: 'whoops', at: 0.38, len: 46, wave: 16, h: 1.35 }] },
+      { cornerRadius: 46, straightLength: 106,elevation: 0,  braking: 0.22, aiSpeed: 0.93, jumps: [{ kind: 'table', at: 0.52, len: 27, h: 4.2 }] }
+    ],
+    relief: 1, rocks: 1, shrubs: 1,
     palette: {
       skyTop: 0x1d3a63, skyMid: 0xc07a72, skyHaze: 0xf6b077, fog: 0xe8ac78,
       sun: 0xffd6a0, sunInt: 2.5, hemiSky: 0x9dbbe8, hemiGnd: 0x7d5230, hemiInt: 0.6,
@@ -93,20 +97,28 @@ const COURSES = [
   },
   {
     id: 'rimrock', name: 'Rimrock Canyon', tag: 'big hits',
-    blurb: 'Carved through harder country — taller relief, rock everywhere, and a lap built around tabletops you either clear or case.',
-    seed: 7, laps: 3, cpCount: 9, radiusBase: 150, radiusVar: 110, wobble: 0.44,
-    relief: 1.3, rocks: 1.8, shrubs: 0.55,
-    plan: [
-      { kind: 'table', len: 29, h: 2.2 },
-      { kind: 'whoops', len: 44, wave: 16, h: 1.3 },
-      { kind: 'tabletop', len: 34, h: 3.4 },
-      { kind: 'ripples', len: 42, wave: 4.2, h: 0.6 },
-      { kind: 'table', len: 28, h: 3.0 },
-      { kind: 'whoops', len: 46, wave: 17, h: 1.4 },
-      { kind: 'tabletop', len: 38, h: 4.0 },
-      { kind: 'whoops', len: 44, wave: 16, h: 1.3 },
-      { kind: 'table', len: 26, h: 4.6 }
+    blurb: 'A technical canyon switchback: commit to the hairpins, then attack the short chutes and tabletops between them.',
+    seed: 7, laps: 3, layoutScale: [270, 235],
+    layout: [
+      [-0.92,-0.72],[0.70,-0.74],[0.88,-0.45],[-0.50,-0.38],[-0.72,-0.08],
+      [0.62,-0.02],[0.82,0.28],[-0.48,0.34],[-0.72,0.64],[0.76,0.76],[0.94,0.52],
+      [0.93,-0.94]
     ],
+    sections: [
+      { cornerRadius: 64, straightLength: 170,elevation: -8, braking: 0.05, aiSpeed: 1.04, jumps: [{ kind: 'table', at: 0.58, len: 29, h: 2.2 }] },
+      { cornerRadius: 24, straightLength: 54, elevation: -2, braking: 0.55, aiSpeed: 0.76, jumps: [] },
+      { cornerRadius: 25, straightLength: 148,elevation: 4, braking: 0.48, aiSpeed: 0.80, jumps: [{ kind: 'tabletop', at: 0.42, len: 34, h: 3.4 }] },
+      { cornerRadius: 22, straightLength: 62, elevation: 10,braking: 0.62, aiSpeed: 0.72, jumps: [] },
+      { cornerRadius: 27, straightLength: 144,elevation: 15,braking: 0.42, aiSpeed: 0.82, jumps: [{ kind: 'whoops', at: 0.38, len: 46, wave: 17, h: 1.4 }] },
+      { cornerRadius: 23, straightLength: 58, elevation: 8, braking: 0.60, aiSpeed: 0.73, jumps: [] },
+      { cornerRadius: 28, straightLength: 140,elevation: 2, braking: 0.44, aiSpeed: 0.81, jumps: [{ kind: 'tabletop', at: 0.43, len: 38, h: 4.0 }] },
+      { cornerRadius: 22, straightLength: 60, elevation: -3,braking: 0.64, aiSpeed: 0.71, jumps: [] },
+      { cornerRadius: 58, straightLength: 152,elevation: -7,braking: 0.08, aiSpeed: 1.02, jumps: [{ kind: 'whoops', at: 0.50, len: 44, wave: 16, h: 1.3 }] },
+      { cornerRadius: 24, straightLength: 55, elevation: -12,braking: 0.58, aiSpeed: 0.74, jumps: [] },
+      { cornerRadius: 48, straightLength: 112,elevation: -8,braking: 0.18, aiSpeed: 0.92, jumps: [{ kind: 'table', at: 0.50, len: 26, h: 4.6 }] },
+      { cornerRadius: 42, straightLength: 176,elevation: -10,braking: 0.18, aiSpeed: 0.92, jumps: [{ kind: 'ripples', at: 0.54, len: 42, wave: 4.2, h: 0.6 }] }
+    ],
+    relief: 1.3, rocks: 1.8, shrubs: 0.55,
     palette: {
       skyTop: 0x2a3550, skyMid: 0xb06858, skyHaze: 0xe89a68, fog: 0xd89468,
       sun: 0xffc890, sunInt: 2.3, hemiSky: 0x9dabd0, hemiGnd: 0x774a28, hemiInt: 0.6,
@@ -115,19 +127,25 @@ const COURSES = [
   },
   {
     id: 'mesa', name: 'Sunset Mesa', tag: 'flow track',
-    blurb: 'A fast, open two-lapper under a dusk sky. Long swells and rollers reward rhythm over bravery — hold the flow and it feels endless.',
-    seed: 3, laps: 2, cpCount: 7, radiusBase: 190, radiusVar: 80, wobble: 0.3,
-    relief: 0.78, rocks: 0.7, shrubs: 1.3,
-    plan: [
-      { kind: 'whoops', len: 56, wave: 19, h: 1.35 },
-      { kind: 'table', len: 30, h: 2.0 },
-      { kind: 'whoops', len: 60, wave: 20, h: 1.5 },
-      { kind: 'table', len: 30, h: 2.5 },
-      { kind: 'whoops', len: 54, wave: 18, h: 1.4 },
-      { kind: 'ripples', len: 40, wave: 4.4, h: 0.55 },
-      { kind: 'whoops', len: 58, wave: 19, h: 1.45 },
-      { kind: 'table', len: 28, h: 3.2 }
+    blurb: 'An asymmetric ridge-and-valley lap: climb the long western spine, drop through the valley, then flow home under the dusk sky.',
+    seed: 3, laps: 2, layoutScale: [292, 242],
+    layout: [
+      [-0.88,-0.62],[-0.18,-0.86],[0.82,-0.62],[0.92,-0.12],[0.36,0.05],
+      [0.76,0.68],[-0.12,0.88],[-0.38,0.30],[-0.88,0.58],[-0.72,-0.02]
     ],
+    sections: [
+      { cornerRadius: 72, straightLength: 138,elevation: -12,braking: 0.00, aiSpeed: 1.05, jumps: [{ kind: 'whoops', at: 0.40, len: 56, wave: 19, h: 1.35 }] },
+      { cornerRadius: 88, straightLength: 178,elevation: -2, braking: 0.00, aiSpeed: 1.06, jumps: [{ kind: 'table', at: 0.62, len: 30, h: 2.0 }] },
+      { cornerRadius: 54, straightLength: 94, elevation: 10, braking: 0.16, aiSpeed: 0.96, jumps: [] },
+      { cornerRadius: 42, straightLength: 104,elevation: 18, braking: 0.30, aiSpeed: 0.89, jumps: [{ kind: 'table', at: 0.46, len: 30, h: 2.5 }] },
+      { cornerRadius: 52, straightLength: 128,elevation: 5,  braking: 0.12, aiSpeed: 0.97, jumps: [{ kind: 'whoops', at: 0.43, len: 54, wave: 18, h: 1.4 }] },
+      { cornerRadius: 82, straightLength: 164,elevation: 14, braking: 0.02, aiSpeed: 1.04, jumps: [{ kind: 'ripples', at: 0.52, len: 40, wave: 4.4, h: 0.55 }] },
+      { cornerRadius: 34, straightLength: 92, elevation: -4, braking: 0.38, aiSpeed: 0.85, jumps: [] },
+      { cornerRadius: 40, straightLength: 104,elevation: -14,braking: 0.32, aiSpeed: 0.87, jumps: [{ kind: 'whoops', at: 0.42, len: 58, wave: 19, h: 1.45 }] },
+      { cornerRadius: 46, straightLength: 108,elevation: -18,braking: 0.24, aiSpeed: 0.91, jumps: [] },
+      { cornerRadius: 62, straightLength: 118,elevation: -12,braking: 0.08, aiSpeed: 1.00, jumps: [{ kind: 'table', at: 0.48, len: 28, h: 3.2 }] }
+    ],
+    relief: 0.78, rocks: 0.7, shrubs: 1.3,
     palette: {
       skyTop: 0x241d4e, skyMid: 0xa04a6a, skyHaze: 0xf08a5a, fog: 0xc87a62,
       sun: 0xff9e70, sunInt: 2.0, hemiSky: 0x8a7ec8, hemiGnd: 0x6a4630, hemiInt: 0.7,
@@ -136,20 +154,27 @@ const COURSES = [
   },
   {
     id: 'noon', name: 'High Noon Raceway', tag: 'the grinder',
-    blurb: 'Four laps in flat hard light on a tight, chewed-up circuit. Two braking-bump sections per lap — mistakes compound here.',
-    seed: 11, laps: 4, cpCount: 8, radiusBase: 145, radiusVar: 75, wobble: 0.46,
-    relief: 0.92, rocks: 1.1, shrubs: 0.9,
-    plan: [
-      { kind: 'table', len: 28, h: 2.0 },
-      { kind: 'ripples', len: 44, wave: 4.0, h: 0.64 },
-      { kind: 'whoops', len: 44, wave: 15, h: 1.3 },
-      { kind: 'table', len: 28, h: 2.6 },
-      { kind: 'whoops', len: 46, wave: 16, h: 1.35 },
-      { kind: 'ripples', len: 40, wave: 4.4, h: 0.58 },
-      { kind: 'tabletop', len: 34, h: 3.2 },
-      { kind: 'whoops', len: 44, wave: 16, h: 1.3 },
-      { kind: 'table', len: 26, h: 3.4 }
+    blurb: 'A compact infield course that folds back beside itself without crossing. Four laps, short straights, and nowhere to rest.',
+    seed: 11, laps: 4, layoutScale: [236, 205],
+    layout: [
+      [-0.92,-0.72],[0.88,-0.72],[0.92,-0.22],[0.18,-0.34],[0.08,0.02],
+      [0.80,0.18],[0.78,0.72],[-0.88,0.72],[-0.92,0.24],[-0.32,0.34],[-0.24,-0.10],[-0.82,-0.24]
     ],
+    sections: [
+      { cornerRadius: 58, straightLength: 154,elevation: -2,braking: 0.02, aiSpeed: 1.03, jumps: [{ kind: 'table', at: 0.46, len: 28, h: 2.0 }] },
+      { cornerRadius: 26, straightLength: 62, elevation: 2, braking: 0.48, aiSpeed: 0.78, jumps: [{ kind: 'ripples', at: 0.16, len: 32, wave: 4.0, h: 0.64 }] },
+      { cornerRadius: 32, straightLength: 88, elevation: 5, braking: 0.35, aiSpeed: 0.84, jumps: [] },
+      { cornerRadius: 24, straightLength: 54, elevation: 8, braking: 0.58, aiSpeed: 0.73, jumps: [] },
+      { cornerRadius: 34, straightLength: 86, elevation: 4, braking: 0.30, aiSpeed: 0.86, jumps: [{ kind: 'whoops', at: 0.28, len: 44, wave: 15, h: 1.3 }] },
+      { cornerRadius: 28, straightLength: 64, elevation: 0, braking: 0.46, aiSpeed: 0.79, jumps: [] },
+      { cornerRadius: 54, straightLength: 148,elevation: -4,braking: 0.04, aiSpeed: 1.02, jumps: [{ kind: 'tabletop', at: 0.54, len: 34, h: 3.2 }] },
+      { cornerRadius: 27, straightLength: 60, elevation: 1, braking: 0.50, aiSpeed: 0.77, jumps: [{ kind: 'ripples', at: 0.14, len: 34, wave: 4.4, h: 0.58 }] },
+      { cornerRadius: 31, straightLength: 82, elevation: 5, braking: 0.38, aiSpeed: 0.83, jumps: [] },
+      { cornerRadius: 23, straightLength: 58, elevation: 7, braking: 0.56, aiSpeed: 0.74, jumps: [] },
+      { cornerRadius: 30, straightLength: 76, elevation: 2, braking: 0.40, aiSpeed: 0.82, jumps: [{ kind: 'whoops', at: 0.22, len: 40, wave: 16, h: 1.3 }] },
+      { cornerRadius: 25, straightLength: 62, elevation: -2,braking: 0.52, aiSpeed: 0.76, jumps: [{ kind: 'table', at: 0.48, len: 26, h: 3.4 }] }
+    ],
+    relief: 0.92, rocks: 1.1, shrubs: 0.9,
     palette: {
       skyTop: 0x2f6bb8, skyMid: 0x8fb4d8, skyHaze: 0xe8d8b0, fog: 0xdfd2ae,
       sun: 0xfff2d0, sunInt: 2.9, hemiSky: 0xbcd4f0, hemiGnd: 0x8a6a40, hemiInt: 0.65,
@@ -430,48 +455,79 @@ scene.add(new THREE.HemisphereLight(PAL.hemiSky, PAL.hemiGnd, PAL.hemiInt));
 }
 
 /* -------------------------------------------------------- course layout */
-/* All layout knobs come from the selected COURSE: control-point count, ring
-   radius and its spread, and how far each point wobbles off the ideal ring.
-   Together with the seeded hash they give each National round its own line. */
-const CP_COUNT = COURSE.cpCount;
+/* Authored normalized points make silhouette a design choice rather than a
+   side-effect of a radial seed. Section metadata has the same index as its
+   outgoing point, so every piece of the lap can carry race intent. */
+const CP_COUNT = COURSE.layout.length;
 const checkpoints = [];
 {
   for (let i = 0; i < CP_COUNT; i++) {
-    const a = (i / CP_COUNT) * Math.PI * 2 + (hash2(i * 7 + 3, 11) - 0.5) * COURSE.wobble;
-    const rad = COURSE.radiusBase + hash2(i * 13 + 5, 29) * COURSE.radiusVar;
-    const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
-    checkpoints.push({ x, z, y: 0, a });
+    const p = COURSE.layout[i];
+    checkpoints.push({
+      x: p[0] * COURSE.layoutScale[0],
+      z: p[1] * COURSE.layoutScale[1],
+      y: 0,
+      section: COURSE.sections[i]
+    });
   }
   /* No ramps on the Baja course. They sat beside the racing line, so going
      round them was always faster — they were an obstacle, not a reward. The
      ramp system stays in the code for the stunt mode; the air out here comes
      from the land itself. */
 
-  // lay the road: a closed Catmull-Rom spline through the gates
+  // Lay the road as a closed cubic Hermite spline. Authored corner radii and
+  // straight lengths determine tangent reach, so a hairpin stays a hairpin
+  // while a broad natural bend remains fast and open.
   const SPACING = 2.2;
   const n = CP_COUNT;
-  const cm = (p0, p1, p2, p3, t, k) => {
+  const tangent = (prev, at, next, section) => {
+    const dx = next.x - prev.x, dz = next.z - prev.z;
+    const dl = Math.hypot(dx, dz) || 1;
+    const inLen = Math.hypot(at.x - prev.x, at.z - prev.z);
+    const outLen = Math.hypot(next.x - at.x, next.z - at.z);
+    const authored = section.cornerRadius + section.straightLength * 0.18;
+    const reach = Math.min(authored, inLen * 0.46, outLen * 0.46);
+    return { x: dx / dl * reach, z: dz / dl * reach };
+  };
+  const hermite = (p1, p2, m1, m2, t, k) => {
     const t2 = t * t, t3 = t2 * t;
-    return 0.5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t +
-      (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 +
-      (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3);
+    return (2 * t3 - 3 * t2 + 1) * p1[k] + (t3 - 2 * t2 + t) * m1[k] +
+      (-2 * t3 + 3 * t2) * p2[k] + (t3 - t2) * m2[k];
   };
   for (let i = 0; i < n; i++) {
     const p0 = checkpoints[(i - 1 + n) % n], p1 = checkpoints[i];
     const p2 = checkpoints[(i + 1) % n], p3 = checkpoints[(i + 2) % n];
+    const sec = COURSE.sections[i], nextSec = COURSE.sections[(i + 1) % n];
+    const m1 = tangent(p0, p1, p2, sec);
+    const m2 = tangent(p1, p2, p3, nextSec);
     const steps = Math.max(6, Math.round(Math.hypot(p2.x - p1.x, p2.z - p1.z) / SPACING));
-    if (i === 0) checkpoints[0].idx = trackPts.length;
-    else checkpoints[i].idx = trackPts.length;
+    checkpoints[i].idx = trackPts.length;
     for (let s = 0; s < steps; s++) {
       const t = s / steps;
-      trackPts.push({ x: cm(p0, p1, p2, p3, t, 'x'), z: cm(p0, p1, p2, p3, t, 'z'), y: 0 });
+      trackPts.push({
+        x: hermite(p1, p2, m1, m2, t, 'x'),
+        z: hermite(p1, p2, m1, m2, t, 'z'),
+        y: 0,
+        aiSpeed: lerp(sec.aiSpeed * (1 - sec.braking * 0.18),
+          nextSec.aiSpeed * (1 - nextSec.braking * 0.18), t)
+      });
     }
   }
   // Grade it: follow the land, then smooth along its length so there are no
   // steps to trip over. Smooth it too hard and the road goes billiard-flat and
   // the bike never leaves the ground — this is tuned to keep the roll that
   // throws you into the air over a crest.
-  for (const p of trackPts) p.y = baseHeight(p.x, p.z);
+  for (let i = 0; i < n; i++) {
+    const start = checkpoints[i].idx;
+    const end = i === n - 1 ? trackPts.length : checkpoints[i + 1].idx;
+    const e0 = COURSE.sections[i].elevation;
+    const e1 = COURSE.sections[(i + 1) % n].elevation;
+    for (let j = start; j < end; j++) {
+      const t = (j - start) / Math.max(1, end - start);
+      const p = trackPts[j];
+      p.y = baseHeight(p.x, p.z) + lerp(e0, e1, smoothstep(0, 1, t));
+    }
+  }
   const N = trackPts.length;
   for (let pass = 0; pass < 9; pass++) {
     const prev = trackPts.map((p) => p.y);
@@ -506,37 +562,20 @@ const checkpoints = [];
     }
   }
 
-  /* Fill the lap with work. A track you can hold flat out is a boring track, so
-     features are packed nose-to-tail with only short breathers between them:
-       ripples  — fast, shallow chatter that shakes the suspension. Fine in
-                  corners, since braking bumps live on corner entry anyway.
-       whoops   — big rolling swells you either double or get bucked by.
-       table    — a proper jump, on the racing line so it can't be avoided.  */
-  const worstBank = (at, len) => {
-    let worst = 0;
-    for (let d = 0; d < len; d += 4) {
-      const i = Math.round((((at + d) % trackLen) / trackLen) * N) % N;
-      worst = Math.max(worst, Math.abs(trackPts[i].bank));
+  /* Place each authored jump zone within its section. The author chooses the
+     corner/straight context explicitly instead of an even-spacing algorithm
+     moving features to whichever part of the lap happens to be flat. */
+  for (let i = 0; i < n; i++) {
+    const start = trackPts[checkpoints[i].idx].along;
+    const end = i === n - 1 ? trackLen : trackPts[checkpoints[i + 1].idx].along;
+    const span = end - start;
+    for (const jump of COURSE.sections[i].jumps) {
+      const copy = Object.assign({}, jump);
+      const fraction = copy.at;
+      delete copy.at;
+      copy.at = (start + fraction * Math.max(0, span - copy.len)) % trackLen;
+      features.push(copy);
     }
-    return worst;
-  };
-  /* Laid out deliberately rather than left to chance: six jumps that build in
-     size, four sets of whoops between them, and exactly one chatter section.
-     Spaced evenly round the lap and nudged clear of the banked corners, which
-     stay clean so they can actually be raced. */
-  /* Jump size is set by height over a roughly fixed length — that ratio is
-     what decides how hard you get launched. Stretching the length as well
-     just flattens the crest out again. The plan itself is authored per course
-     in the COURSES catalog: Flats builds to one big finisher, Rimrock stacks
-     tabletops, Mesa is all flow, High Noon doubles up the chatter. */
-  const plan = COURSE.plan;
-  const slot = trackLen / plan.length;
-  for (let i = 0; i < plan.length; i++) {
-    let at = 24 + i * slot;
-    for (let tries = 0; tries < 14 && worstBank(at, plan[i].len + 24) > MAX_BANK * 0.34; tries++) {
-      at += 5;
-    }
-    features.push(Object.assign({ at: at % trackLen }, plan[i]));
   }
 
   bakeTrackField();
@@ -1459,7 +1498,9 @@ function stepAI(ai, dt) {
   const fwX = Math.sin(ai.yaw), fwZ = Math.cos(ai.yaw);
   const speedF   = ai.vel.x * fwX + ai.vel.z * fwZ;
   const absSpeed = Math.hypot(ai.vel.x, ai.vel.y, ai.vel.z);
-  const effTop   = MAX_SPEED * ai.topSpeedEff * (ai.mistakeActive ? 0.68 : 1.0);
+  const hintIdx = ((Math.round((ai.along / trackLen) * trackPts.length)) % trackPts.length + trackPts.length) % trackPts.length;
+  const sectionPace = trackPts[hintIdx].aiSpeed || 1;
+  const effTop   = MAX_SPEED * ai.topSpeedEff * sectionPace * (ai.mistakeActive ? 0.68 : 1.0);
 
   ai.grounded = ai.pos.y <= gh + RIDE_H + 0.08;
 
@@ -1636,7 +1677,9 @@ function updateAI(dt) {
 
     if (dist2player > 250) {
       /* ---- LOD: analytical advance on the centreline ---- */
-      const speed = MAX_SPEED * ai.topSpeedEff * (ai.mistakeActive ? 0.68 : 1.0);
+      const hintIdx = ((Math.round((ai.along / trackLen) * trackPts.length)) % trackPts.length + trackPts.length) % trackPts.length;
+      const speed = MAX_SPEED * ai.topSpeedEff * (trackPts[hintIdx].aiSpeed || 1) *
+        (ai.mistakeActive ? 0.68 : 1.0);
       ai.along += speed * dt;
       /* Sector gate — same 45–75 % window as the player's checkCheckpoint. */
       if (ai.along > trackLen * 0.45 && ai.along < trackLen * 0.75) ai.sectorSeen = true;
@@ -2552,7 +2595,7 @@ $('#loading').classList.add('gone');
 // diagnostics hook (used to drive the sim in tests)
 window.__dbg = {
   S, G, keys, step, update, resize, startGame, respawn, terrainH, terrainNormal,
-  checkpoints, ramps, renderer, scene, camera,
+  COURSE, checkpoints, ramps, renderer, scene, camera,
   get trackPts() { return trackPts; }, trackProfile, onTrack, features,
   get trackLen() { return trackLen; },
   get clock() { return clock; }, get fps() { return fpsShown; }, MOBILE, SEG,

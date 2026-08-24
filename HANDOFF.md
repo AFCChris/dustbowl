@@ -131,6 +131,16 @@ scripted penalty doing that job. `onTrack()` returns 1 on the racing line and 0 
 the sand, and drives only a **drag penalty** on loose ground — that's what makes
 cutting a corner cost you rather than being free.
 
+### National layouts are authored data
+
+Each National course owns a normalized 2D `layout` and a matching `sections` array;
+it is not a seeded ring. A section runs from layout point *i* to point *i + 1* and
+specifies corner radius, straight length, elevation intent, braking intensity, AI
+speed, and zero or more jump zones. The shared bake turns that data into the same
+`trackPts`, `trackProfile`, terrain channel, minimap and recovery path used by every
+course. Keep layout coordinates inside the existing play radius and field bounds,
+and keep the layout and section arrays the same length.
+
 ### `trackProfile` — two traps
 
 ```js
