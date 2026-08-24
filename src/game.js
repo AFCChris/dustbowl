@@ -876,10 +876,25 @@ scatter(new THREE.ConeGeometry(0.8, 1.8, 5), new THREE.MeshLambertMaterial({ col
   banner.rotation.y = yaw;
   scene.add(banner);
 
-  /* A single full-width painted line reads cleanly at speed and cannot leave
-     half the racing surface uncovered like the old individually tiled strip. */
+  /* One canvas-backed chequer texture gives the start line a proper race-day
+     identity without bringing back the old loose tiles that clipped through
+     the terrain and stopped halfway across the track. */
+  const checkerCanvas = document.createElement('canvas');
+  checkerCanvas.width = 12;
+  checkerCanvas.height = 2;
+  const checkerCtx = checkerCanvas.getContext('2d');
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 12; col++) {
+      checkerCtx.fillStyle = (row + col) % 2 ? '#eee9df' : '#17191d';
+      checkerCtx.fillRect(col, row, 1, 1);
+    }
+  }
+  const checkerTex = new THREE.CanvasTexture(checkerCanvas);
+  checkerTex.magFilter = THREE.NearestFilter;
+  checkerTex.minFilter = THREE.NearestFilter;
+  checkerTex.colorSpace = THREE.SRGBColorSpace;
   const lineMat = new THREE.MeshBasicMaterial({
-    color: 0xf3eee4,
+    map: checkerTex,
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2
