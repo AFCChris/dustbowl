@@ -91,6 +91,21 @@ function runCourse(courseId) {
   // The authored centreline must remain a simple loop. An infield may fold
   // close beside itself, but road geometry may never actually intersect.
   const pts = dbg.trackPts;
+  // Lap zero is also the visible grid/gantry location. It must sit on a calm
+  // straight and clear of jump geometry, rather than inheriting layout point 0.
+  const sb = pts[pts.length - 6], ss = pts[0], sa = pts[6];
+  const inX = ss.x - sb.x, inZ = ss.z - sb.z;
+  const outX = sa.x - ss.x, outZ = sa.z - ss.z;
+  const inL = Math.hypot(inX, inZ) || 1, outL = Math.hypot(outX, outZ) || 1;
+  const startBend = Math.acos(Math.max(-1, Math.min(1, (inX * outX + inZ * outZ) / (inL * outL))));
+  const nearestFeature = Math.min(...dbg.features.map((f) => {
+    const d = Math.abs(f.at);
+    return Math.min(d, dbg.trackLen - d);
+  }));
+  if (startBend > 0.14 || Math.abs(ss.bank) > 0.1 || nearestFeature < 18) {
+    throw new Error(courseId + ': unsafe start straight (bend=' + startBend.toFixed(3) +
+      ', bank=' + ss.bank.toFixed(3) + ', feature=' + nearestFeature.toFixed(1) + ')');
+  }
   function crosses(a, b, c, d) {
     const orient = (p, q, r) => (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
     const abC = orient(a, b, c), abD = orient(a, b, d);
@@ -151,6 +166,7 @@ function runCourse(courseId) {
     laps: dbg.RACE_LAPS, features: dbg.features.length,
     riderMoved: dbg.S.pos.length() > 1, onCourse: !!prof,
     clock: dbg.clock.toFixed(1), completedLaps,
+    startBend: +startBend.toFixed(3), startBank: +ss.bank.toFixed(3),
   };
 }
 

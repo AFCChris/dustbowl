@@ -53,7 +53,7 @@ function fbm(x, y, oct) {
 }
 
 /* ------------------------------------------------------------ constants */
-const BUILD = 'v0.17 · Authored Nationals';  // shown on the title screen, so you can
+const BUILD = 'v0.18 · Clean Racing Lines';  // shown on the title screen, so you can
                                    // tell at a glance whether a deploy actually landed
 /* Phones get a lighter build of the world. Decided once, up front, because the
    terrain mesh is baked at load. */
@@ -72,7 +72,7 @@ const COURSES = [
   {
     id: 'flats', name: 'Dustbowl Flats', tag: 'the classic',
     blurb: 'Where the series started. Rolling desert, banked corners, a lap that builds from a gentle opener to the big one.',
-    seed: 0, laps: 3, layoutScale: [286, 238],
+    seed: 0, laps: 3, layoutScale: [286, 238], start: { section: 2, at: 0.18 },
     layout: [
       [-0.90,-0.15],[-0.70,-0.70],[-0.08,-0.88],[0.58,-0.72],[0.92,-0.20],
       [0.78,0.42],[0.28,0.80],[-0.36,0.86],[-0.86,0.50]
@@ -98,7 +98,7 @@ const COURSES = [
   {
     id: 'rimrock', name: 'Rimrock Canyon', tag: 'big hits',
     blurb: 'A technical canyon switchback: commit to the hairpins, then attack the short chutes and tabletops between them.',
-    seed: 7, laps: 3, layoutScale: [270, 235],
+    seed: 7, laps: 3, layoutScale: [270, 235], start: { section: 0, at: 0.22 },
     layout: [
       [-0.92,-0.72],[0.70,-0.74],[0.88,-0.45],[-0.50,-0.38],[-0.72,-0.08],
       [0.62,-0.02],[0.82,0.28],[-0.48,0.34],[-0.72,0.64],[0.76,0.76],[0.94,0.52],
@@ -128,7 +128,7 @@ const COURSES = [
   {
     id: 'mesa', name: 'Sunset Mesa', tag: 'flow track',
     blurb: 'An asymmetric ridge-and-valley lap: climb the long western spine, drop through the valley, then flow home under the dusk sky.',
-    seed: 3, laps: 2, layoutScale: [292, 242],
+    seed: 3, laps: 2, layoutScale: [292, 242], start: { section: 1, at: 0.25 },
     layout: [
       [-0.88,-0.62],[-0.18,-0.86],[0.82,-0.62],[0.92,-0.12],[0.36,0.05],
       [0.76,0.68],[-0.12,0.88],[-0.38,0.30],[-0.88,0.58],[-0.72,-0.02]
@@ -155,7 +155,7 @@ const COURSES = [
   {
     id: 'noon', name: 'High Noon Raceway', tag: 'the grinder',
     blurb: 'A compact infield course that folds back beside itself without crossing. Four laps, short straights, and nowhere to rest.',
-    seed: 11, laps: 4, layoutScale: [236, 205],
+    seed: 11, laps: 4, layoutScale: [236, 205], start: { section: 0, at: 0.18 },
     layout: [
       [-0.92,-0.72],[0.88,-0.72],[0.92,-0.22],[0.18,-0.34],[0.08,0.02],
       [0.80,0.18],[0.78,0.72],[-0.88,0.72],[-0.92,0.24],[-0.32,0.34],[-0.24,-0.10],[-0.82,-0.24]
@@ -578,6 +578,29 @@ const checkpoints = [];
     }
   }
 
+  /* Put lap zero on an authored straight, not on layout point zero (which is a
+     corner by definition on most silhouettes). Rotating the sampled loop keeps
+     every race system's simple trackPts[0] convention, while remapping authored
+     features and diagnostic checkpoint indices into the new distance space. */
+  const startSection = clamp(COURSE.start.section | 0, 0, n - 1);
+  const sectionFirst = checkpoints[startSection].idx;
+  const sectionEnd = startSection === n - 1 ? N : checkpoints[startSection + 1].idx;
+  const startIdx = clamp(
+    sectionFirst + Math.round((sectionEnd - sectionFirst) * clamp(COURSE.start.at, 0.08, 0.92)),
+    sectionFirst,
+    Math.max(sectionFirst, sectionEnd - 1)
+  );
+  const oldStartAlong = trackPts[startIdx].along;
+  if (startIdx > 0) trackPts = trackPts.slice(startIdx).concat(trackPts.slice(0, startIdx));
+  for (const c of checkpoints) c.idx = ((c.idx - startIdx) % N + N) % N;
+  for (const f of features) f.at = ((f.at - oldStartAlong) % trackLen + trackLen) % trackLen;
+  trackLen = 0;
+  for (let i = 0; i < N; i++) {
+    trackPts[i].along = trackLen;
+    const b = trackPts[(i + 1) % N];
+    trackLen += Math.hypot(b.x - trackPts[i].x, b.z - trackPts[i].z);
+  }
+
   bakeTrackField();
   for (const c of checkpoints) c.y = terrainH(c.x, c.z);
 }
@@ -818,52 +841,54 @@ scatter(new THREE.ConeGeometry(0.8, 1.8, 5), new THREE.MeshLambertMaterial({ col
 /* ------------------------------------------------- start / finish gantry */
 {
   const N = trackPts.length;
-  const p = trackPts[0], q = trackPts[3 % N];
-  const dirA = Math.atan2(q.z - p.z, q.x - p.x);
-  const g = new THREE.Group();
-  const span = TRACK_HALF + BERM_W * 0.5;
+  const p = trackPts[0];
+  const behind = trackPts[(N - 4) % N], ahead = trackPts[4 % N];
+  const dx = ahead.x - behind.x, dz = ahead.z - behind.z;
+  const dl = Math.hypot(dx, dz) || 1;
+  const tx = dx / dl, tz = dz / dl;
+  const rx = tz, rz = -tx;   // right of travel; matches positive trackProfile.s
+  const yaw = Math.atan2(tx, tz);
+  const outer = TRACK_HALF + BERM_W + 2.5;
 
   const postMat = new THREE.MeshLambertMaterial({ color: 0xe9e4da });
   const barMat = new THREE.MeshLambertMaterial({ color: 0xe4453a });
-  for (const sx of [-span, span]) {
+  let beamY = -Infinity;
+  for (const side of [-1, 1]) {
+    const x = p.x + rx * outer * side;
+    const z = p.z + rz * outer * side;
+    const ground = terrainH(x, z);
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.7, 9, 0.7), postMat);
-    post.position.set(sx, 4.5, 0);
+    post.position.set(x, ground + 4.5, z);
     post.castShadow = true;
-    g.add(post);
+    scene.add(post);
+    beamY = Math.max(beamY, ground + 9.4);
   }
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(span * 2 + 1.4, 1.9, 0.9), barMat);
-  beam.position.y = 9.4;
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(outer * 2 + 1.4, 1.9, 0.9), barMat);
+  beam.position.set(p.x, beamY, p.z);
+  beam.rotation.y = yaw;
   beam.castShadow = true;
-  g.add(beam);
+  scene.add(beam);
   const banner = new THREE.Mesh(
-    new THREE.PlaneGeometry(span * 2, 1.3),
+    new THREE.PlaneGeometry(outer * 2, 1.3),
     new THREE.MeshBasicMaterial({ color: 0x0b0d10, side: THREE.DoubleSide })
   );
-  banner.position.set(0, 7.9, 0.5);
-  g.add(banner);
+  banner.position.set(p.x + tx * 0.48, beamY - 1.55, p.z + tz * 0.48);
+  banner.rotation.y = yaw;
+  scene.add(banner);
 
-  // chequered strip painted across the track
-  const strip = new THREE.Group();
-  const SQ = 12;
-  for (let i = 0; i < SQ; i++) {
-    for (let j = 0; j < 2; j++) {
-      const q2 = new THREE.Mesh(
-        new THREE.PlaneGeometry(span * 2 / SQ, 1.5),
-        new THREE.MeshBasicMaterial({ color: (i + j) % 2 ? 0xf2ede3 : 0x1b1d22 })
-      );
-      q2.rotation.x = -Math.PI / 2;
-      q2.position.set(-span + (i + 0.5) * (span * 2 / SQ), 0, (j - 0.5) * 1.5);
-      strip.add(q2);
-    }
-  }
-  strip.position.y = 0.12;
-  g.add(strip);
-
-  g.rotation.y = -dirA + Math.PI / 2;
-  g.position.set(p.x, p.y - TRACK_CUT, p.z);
-  scene.add(g);
-  // the strip follows the banked surface rather than floating over it
-  strip.rotation.z = Math.atan(trackPts[0].bank);
+  /* A single full-width painted line reads cleanly at speed and cannot leave
+     half the racing surface uncovered like the old individually tiled strip. */
+  const lineMat = new THREE.MeshBasicMaterial({
+    color: 0xf3eee4,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2
+  });
+  const line = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.055, 1.35), lineMat);
+  line.position.set(p.x, p.y - TRACK_CUT + 0.075, p.z);
+  line.rotation.set(0, yaw, Math.atan(p.bank));
+  line.receiveShadow = true;
+  scene.add(line);
 }
 
 /* ---------------------------------------------------------------- bike */
@@ -1434,7 +1459,8 @@ for (let i = 0; i < NUM_AI; i++) {
     nextMistakeAt: 0,
     mistakeActive: false,
     mistakeEndAt: 0,
-    mistakeSteer: 0,   // signed lateral bias injected during the mistake
+    mistakeSteer: 0,   // signed gentle target-line offset during the mistake
+    steerInput: 0,     // damped steering command; prevents left-right hunting
     offTrackTime: 0,   // sustained excursion before recovery to centreline
     /* Sector gate — mirrors the player's sectorSeen in checkCheckpoint so that
        a grid-start along near trackLen does not count as a lap crossing before
@@ -1463,7 +1489,7 @@ function resetAI() {
     ai.grounded = true; ai.wheelSpin = 0;
     ai.topSpeedEff = ai.topSpeedBase;
     ai.nextMistakeAt = 3 + hash2(i * 3 + 1, 17) * 9;
-    ai.mistakeActive = false; ai.mistakeSteer = 0;
+    ai.mistakeActive = false; ai.mistakeSteer = 0; ai.steerInput = 0;
     ai.offTrackTime = 0;
     ai.sectorSeen = false;
     ai.mesh.position.copy(ai.pos);
@@ -1484,20 +1510,23 @@ function stepAI(ai, dt) {
   const _tp = trackProfile(ai.pos.x, ai.pos.z);
   const tp_s = _tp ? _tp.s : 0;
 
-  /* Mistake effect on steering authority and target line. */
-  const cornerEff = ai.mistakeActive ? ai.cornering * 0.22 : ai.cornering;
-  const wobble    = ai.mistakeActive ? ai.mistakeSteer * 0.7 : 0;
-
-  /* Steer toward track centreline, blended by cornering ability. */
-  /* Positive s is right of travel and positive steerIn reduces yaw (left),
-     so the correction must have the same sign as s. The old negative sign
-     made every excursion self-amplifying: drift right, steer farther right. */
-  const centerErr = clamp(tp_s / TRACK_HALF, -1, 1);
-  const steerIn   = clamp(centerErr * cornerEff + wobble, -1, 1);
-
   const fwX = Math.sin(ai.yaw), fwZ = Math.cos(ai.yaw);
   const speedF   = ai.vel.x * fwX + ai.vel.z * fwZ;
   const absSpeed = Math.hypot(ai.vel.x, ai.vel.y, ai.vel.z);
+
+  /* Aim through a point ahead on the centreline instead of waiting to react to
+     lateral drift. A small direct centre correction catches excursions, while
+     exponential damping prevents the target from producing visible zig-zags. */
+  const lookAhead = 10 + clamp(Math.abs(speedF) * 0.52, 0, 18);
+  const mistakeLine = ai.mistakeActive ? ai.mistakeSteer : 0;
+  const target = gridSpawn((ai.along + lookAhead) % trackLen, mistakeLine);
+  const targetYaw = Math.atan2(target.x - ai.pos.x, target.z - ai.pos.z);
+  const headingErr = Math.atan2(Math.sin(targetYaw - ai.yaw), Math.cos(targetYaw - ai.yaw));
+  const centerErr = clamp(tp_s / TRACK_HALF, -1.25, 1.25);
+  const rawSteer = clamp(-headingErr * (1.15 + ai.cornering * 0.55) + centerErr * 0.28, -1, 1);
+  ai.steerInput = lerp(ai.steerInput, rawSteer, 1 - Math.exp(-5.5 * dt));
+  const steerIn = ai.steerInput;
+
   const hintIdx = ((Math.round((ai.along / trackLen) * trackPts.length)) % trackPts.length + trackPts.length) % trackPts.length;
   const sectionPace = trackPts[hintIdx].aiSpeed || 1;
   const effTop   = MAX_SPEED * ai.topSpeedEff * sectionPace * (ai.mistakeActive ? 0.68 : 1.0);
@@ -1753,7 +1782,7 @@ function updateAI(dt) {
     if (!ai.mistakeActive && clock > ai.nextMistakeAt) {
       ai.mistakeActive = true;
       ai.mistakeEndAt  = clock + 0.7 + hash2(ai.idx * 13 + (clock * 10 | 0), 7) * 1.1;
-      ai.mistakeSteer  = (hash2(ai.idx * 5 + 1, 19) > 0.5 ? 1 : -1) * 0.55;
+      ai.mistakeSteer  = (hash2(ai.idx * 5 + 1, 19) > 0.5 ? 1 : -1) * 1.35;
     }
     if (ai.mistakeActive && clock > ai.mistakeEndAt) {
       ai.mistakeActive = false;
