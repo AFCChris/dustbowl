@@ -1299,15 +1299,17 @@ let landImpactT = 0;
    lerp smooths away within ~3 frames. Set in crash(), decays in updateCamera(). */
 const camJolt = new THREE.Vector3();
 const SUSP_TRAVEL = 0.42;   // metres of give before the chassis is pushed
-function takeoff() {
+function takeoff(trigger) {
   // Carry the ramp's launch into the air. The suspension hugs the surface so
   // tightly that vel.y is ~0 at the lip, and the terrain normal is unusable
   // there (it straddles the vertical drop), so use the rate the ground has
   // been rising under the wheels instead.
+  const approachSpeed = Math.hypot(S.vel.x, S.vel.z);
   S.vel.y = Math.max(S.vel.y, Math.min(S.climb, 26));
   S.airTime = 0;
   S.flipAccum = 0;
   S.airStart = clock;
+  baselineTelemetry.takeoff(trigger || 'contact-loss', approachSpeed);
 }
 const G = {
   score: 0, nextCP: 0, lap: 1, lapStart: 0, best: null,
@@ -1338,6 +1340,8 @@ function trackSpawn(atAlong) {
 }
 
 function respawn(manual) {
+  const wasCrashed = S.crashed;
+  const crashDuration = S.crashT;
   let x, z, yaw;
   if (manual) {
     // on the grid, just behind the start line
@@ -1365,6 +1369,7 @@ function respawn(manual) {
   G.combo = 0;
   resetGateTracking();
   hideBanner();
+  baselineTelemetry.respawn(manual, wasCrashed, crashDuration);
 }
 
 function resetRun() {
@@ -1865,7 +1870,7 @@ function updateAI(dt) {
    Written by step() on every substep; the last substep's values are what
    the renderer sees. Never used by the physics itself after step() returns,
    so there is no risk of them feeding back into handling. */
-let steerIn = 0, brakeIn = 0, gasIn = 0;
+let steerIn = 0, brakeIn = 0, gasIn = 0, pitchIn = 0;
 
 function step(dt) {
   steerIn = clamp((keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0) + touch.steer, -1, 1);
@@ -1880,7 +1885,7 @@ function step(dt) {
   // shouldn't quietly tip you onto your face.
   // (the stick is analogue and self-centring, so it needs no such guard)
   const fresh = (c) => keys[c] && keyAt[c] > S.airStart;
-  const pitchIn = clamp(
+  pitchIn = clamp(
     (fresh('ArrowDown') || fresh('KeyS') ? 1 : 0) - (fresh('ArrowUp') || fresh('KeyW') ? 1 : 0) - touch.pitch,
     -1, 1);
 
@@ -1920,7 +1925,7 @@ function step(dt) {
   terrainNormal(S.pos.x, S.pos.z, gN);
   const wasGrounded = S.grounded;
   S.grounded = S.pos.y <= gh + RIDE_H + 0.06;
-  if (wasGrounded && !S.grounded) takeoff();
+  if (wasGrounded && !S.grounded) takeoff('contact-loss');
 
   if (S.grounded) {
     // -- landing
@@ -1989,9 +1994,11 @@ function step(dt) {
           glued to the terrain and only artificial ramps ever produce air,
           which is exactly what made the open desert feel dead. */
     const carried = S.climb - GRAV * dt;
-    if (S.pos.y > nextH + RIDE_H + 0.25 || carried > groundRate + 0.6) {
+    const lipRelease = S.pos.y > nextH + RIDE_H + 0.25;
+    const crestRelease = carried > groundRate + 0.6;
+    if (lipRelease || crestRelease) {
       S.grounded = false;
-      takeoff();
+      takeoff(lipRelease ? (crestRelease ? 'lip+crest' : 'lip') : 'rounded-crest');
     } else {
       S.pos.y = nextH + RIDE_H;
       if (S.vel.y < 0) S.vel.y = 0;
@@ -2070,6 +2077,7 @@ function onLand(normal) {
   if (at > 0.3) {
     const flips = Math.floor(Math.abs(S.flipAccum) / (Math.PI * 2) + 0.25);
     const badLanding = align < 0.35 || (align < 0.62 && impact > 20);
+    baselineTelemetry.landing(at, align, impact, badLanding ? 'wipeout' : 'accepted');
     if (badLanding) {
       crash();
       return;
@@ -2087,7 +2095,7 @@ function onLand(normal) {
       banner(label, at.toFixed(2) + 's  ·  +' + Math.round(pts * (1 + Math.min(G.combo, 5) * 0.15)) + (G.combo > 1 ? '  ·  x' + G.combo : ''));
       chime(flips ? 880 : 620);
     }
-  }
+  } else baselineTelemetry.landing(at, align, impact, 'short-contact');
 
   // absorb the hit, scrub speed on a sloppy landing
   const scrub = lerp(0.5, 1.0, clamp((align - 0.35) / 0.5, 0, 1));
@@ -2106,6 +2114,7 @@ function onLand(normal) {
 }
 
 function crash() {
+  baselineTelemetry.wipeout();
   S.crashed = true;
   S.crashT = 0;
   G.combo = 0;
@@ -2250,6 +2259,148 @@ function updateCamera(dt) {
 
 /* ----------------------------------------------------------------- loop */
 let clock = 0, last = performance.now(), lastFrameAt = performance.now();
+
+/* Development-only A/B telemetry. Disabled by default and exposed only through
+   window.__dbg; none of its values feed back into controller or race rules. */
+const baselineTelemetry = (() => {
+  const MAX_SAMPLES = 36000;
+  const MAX_EVENTS = 2000;
+  const orientation = new THREE.Euler(0, 0, 0, 'XYZ');
+  let enabled = false;
+  let scenario = null;
+  let samples = [];
+  let events = [];
+  let activeFlight = null;
+
+  const round = (v) => Math.round(v * 10000) / 10000;
+  function trim(list, limit) {
+    if (list.length > limit) list.splice(0, list.length - limit);
+  }
+  function pose() {
+    orientation.setFromQuaternion(S.quat, 'XYZ');
+    return {
+      pitchDeg: round(orientation.x * 180 / Math.PI),
+      yawDeg: round(orientation.y * 180 / Math.PI),
+      rollDeg: round(orientation.z * 180 / Math.PI),
+    };
+  }
+  function event(type, data) {
+    if (!enabled) return;
+    events.push(Object.assign({ type, time: round(clock) }, data || {}));
+    trim(events, MAX_EVENTS);
+  }
+  function clear() {
+    samples = [];
+    events = [];
+    activeFlight = null;
+  }
+  function start(name) {
+    clear();
+    enabled = true;
+    scenario = name || 'unnamed reference run';
+    event('session-start', { scenario, course: COURSE.id, build: BUILD });
+    sample();
+  }
+  function stop() {
+    if (enabled) event('session-stop');
+    enabled = false;
+    return snapshot();
+  }
+  function sample() {
+    if (!enabled) return;
+    const p = trackProfile(S.pos.x, S.pos.z);
+    const ground = terrainH(S.pos.x, S.pos.z);
+    samples.push(Object.assign({
+      time: round(clock),
+      x: round(S.pos.x), y: round(S.pos.y), z: round(S.pos.z),
+      heightAboveGround: round(S.pos.y - ground - RIDE_H),
+      speed: round(S.vel.length()),
+      planarSpeed: round(Math.hypot(S.vel.x, S.vel.z)),
+      verticalVelocity: round(S.vel.y),
+      grounded: S.grounded,
+      crashed: S.crashed,
+      airTime: round(S.airTime),
+      climbRate: round(S.climb),
+      surface: round(S.surf),
+      trackAlong: p ? round(p.along) : null,
+      trackOffset: p ? round(p.s) : null,
+      steerInput: round(steerIn),
+      pitchInput: round(pitchIn),
+      throttleInput: round(gasIn),
+      brakeInput: round(brakeIn),
+      camera: CAM_NAMES[camMode],
+      cameraX: round(camera.position.x),
+      cameraY: round(camera.position.y),
+      cameraZ: round(camera.position.z),
+      cameraFov: round(camera.fov),
+    }, pose()));
+    trim(samples, MAX_SAMPLES);
+  }
+  function takeoff(trigger, approachSpeed) {
+    if (!enabled) return;
+    activeFlight = {
+      takeoffTime: round(clock),
+      trigger,
+      approachSpeed: round(approachSpeed),
+      takeoffSpeed: round(S.vel.length()),
+      recentClimbRate: round(S.climb),
+      launchVerticalVelocity: round(S.vel.y),
+    };
+    event('takeoff', Object.assign({}, activeFlight, pose()));
+  }
+  function landing(airborneDuration, align, impact, classification) {
+    if (!enabled) return;
+    const data = Object.assign({}, activeFlight || {}, {
+      airborneDuration: round(airborneDuration),
+      impactDownwardSpeed: round(impact),
+      surfaceAlignment: round(align),
+      surfaceAlignmentErrorDeg: round(Math.acos(clamp(align, -1, 1)) * 180 / Math.PI),
+      classification,
+    }, pose());
+    event('landing', data);
+    activeFlight = null;
+  }
+  function wipeout() {
+    if (!enabled) return;
+    event('wipeout-commit', { speed: round(S.vel.length()) });
+  }
+  function respawn(manual, wasCrashed, crashDuration) {
+    if (!enabled) return;
+    event(manual ? 'manual-reset' : 'automatic-reset', {
+      followedWipeout: !!wasCrashed,
+      wipeoutToRestoredControl: wasCrashed ? round(crashDuration) : null,
+    });
+    activeFlight = null;
+  }
+  function mark(label, data) {
+    event('marker', Object.assign({ label }, data || {}));
+  }
+  function snapshot() {
+    return JSON.parse(JSON.stringify({
+      schemaVersion: 1,
+      build: BUILD,
+      course: COURSE.id,
+      scenario,
+      enabled,
+      samples,
+      events,
+    }));
+  }
+  function download(filename) {
+    const data = JSON.stringify(snapshot(), null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename || 'dustbowl-behavioural-reference.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 0);
+  }
+  return {
+    start, stop, clear, mark, snapshot, download, sample,
+    takeoff, landing, wipeout, respawn,
+    get enabled() { return enabled; },
+  };
+})();
 const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.6, fog: false });
 const dirArrow = new THREE.Group();
 {
@@ -2491,6 +2642,7 @@ function update(dt) {
     if (bannerT <= 0) hideBanner();
   }
   drawMap();
+  baselineTelemetry.sample();
 }
 
 /* ------------------------------------------------------------ lifecycle */
@@ -2654,5 +2806,6 @@ window.__dbg = {
   effTotalDist, gridSpawn, resetAI, _recordAILap,
   get countingDown() { return countingDown; },
   RACE_LAPS, TOTAL_RIDERS, NUM_AI,
+  telemetry: baselineTelemetry,
 };
 })();
