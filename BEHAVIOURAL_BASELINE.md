@@ -442,10 +442,9 @@ user to play named web and Unity scenarios A/B and approve the result.
 
 ## Known documentation/live-code inconsistencies
 
-- The approved foundation commit and current user instruction settle the
-  production foundation, but several foundation document status lines still say
-  “proposal”, “awaiting foundation approval” or “subject to approval”. Stage 0
-  records that inconsistency without rewriting approved documents.
+- Stage 1 resolves the stale foundation status lines: Unity 6.3 LTS, C# and URP
+  are the approved production direction. The Stage 0 behavioural record itself
+  remains unchanged.
 - `HANDOFF.md` describes an older one-track time-trial with no opponents and
   says there is no automated suite. The live baseline has four authored
   National courses, seven AI riders and the smoke/AI scripts. `CODEX_HANDOFF.md`

@@ -1,6 +1,6 @@
 # Dustbowl engine decision
 
-Status: revised recommendation awaiting user approval
+Status: approved engine decision
 
 Decision date: 2026-08-27
 
@@ -8,7 +8,7 @@ Decision date: 2026-08-27
 
 Use **Unity 6.3 LTS with C# and the Universal Render Pipeline (URP)** for the long-term Dustbowl version. Keep the existing Three.js game available and maintained as the behavioural reference during development.
 
-This supersedes the earlier provisional Godot recommendation. Do not create the Unity project until the revised foundation package is approved.
+This supersedes the earlier provisional Godot recommendation. The revised foundation package and Unity migration are approved.
 
 ## Why the recommendation changed
 
@@ -70,7 +70,7 @@ Scores reflect the clarified project, not generic engine quality.
 | Licensing/control | 3% | 3 | 5 | Godot is MIT/open source; Unity is commercial and terms must be monitored |
 | **Weighted result** | **100%** | **4.86/5** | **4.14/5** | Unity leads for the expanded destination |
 
-## Approved technical direction, if the recommendation is accepted
+## Approved technical direction
 
 - **Editor:** pin Unity 6.3 LTS to a specific patch version when the project is created.
 - **Language:** C#.

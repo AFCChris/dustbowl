@@ -1,8 +1,8 @@
 # Dustbowl development and migration plan
 
-Status: revised proposal; no engine project has been created
+Status: approved migration plan; Stage 1 foundation established
 
-Target: Unity 6.3 LTS, C# and URP, subject to approval
+Target: Unity 6.3 LTS, C# and URP
 
 ## Development principle
 

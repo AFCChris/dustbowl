@@ -1,0 +1,8 @@
+{
+  "name": "Dustbowl.Foundation",
+  "rootNamespace": "Dustbowl",
+  "references": [
+    "Unity.InputSystem"
+  ],
+  "autoReferenced": true
+}

@@ -1,6 +1,6 @@
 # Dustbowl game vision
 
-Status: revised canonical product direction, pending foundation approval
+Status: approved canonical product direction
 
 Scope: defines what Dustbowl is and how product decisions are judged
 

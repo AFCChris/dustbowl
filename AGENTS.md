@@ -52,7 +52,7 @@ The web build is a behavioural reference, not a visual ceiling.
 
 ## Target-controller rules
 
-- The approved target, if the foundation is accepted, is Unity 6.3 LTS, C# and URP.
+- The approved target is Unity 6.3 LTS, C# and URP.
 - Start with a code-controlled player body and explicit state.
 - Do not begin with Unity `WheelCollider`, a jointed multi-rigidbody motorcycle or a marketplace vehicle controller.
 - Render and collision terrain must derive from the same course/height data.

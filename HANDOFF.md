@@ -1,5 +1,9 @@
 # Dustbowl — handoff spec
 
+> **Legacy-web note:** This document preserves detailed historical implementation
+> knowledge and is partly stale. Use `CODEX_HANDOFF.md` for current authority and
+> `BEHAVIOURAL_BASELINE.md` for the reviewed web v0.18 A/B reference.
+
 For whoever (or whatever) picks this up next, in Replit or anywhere else. Assumes
 you have the code and none of the history. `README.md` is the short tour; this is
 the part that isn't in the code comments.

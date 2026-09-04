@@ -1,6 +1,6 @@
 # Dustbowl Codex handoff
 
-Status: revised canonical handoff awaiting foundation approval
+Status: approved canonical handoff
 
 Read first: `AGENTS.md`
 
@@ -8,7 +8,7 @@ Read first: `AGENTS.md`
 
 Build the long-term Dustbowl version without losing the tuned arcade behaviour already present in the Three.js game, and raise it into a polished modern indie game. Treat the web implementation as valuable executable design evidence, not disposable prototype code and not a visual-quality target.
 
-No engine migration has begun. The revised recommendation is Unity 6.3 LTS with C# and URP, awaiting user approval.
+Stage 1 of the approved Unity 6.3 LTS, C# and URP migration establishes the project foundation only. The bike-controller port begins no earlier than Stage 2 and requires the Stage 1 review gate.
 
 ## Authority order
 

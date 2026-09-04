@@ -1,0 +1,49 @@
+{
+  "name": "DustbowlInputActions",
+  "maps": [
+    {
+      "name": "Player",
+      "id": "20c7ccf3-e641-4fb1-9b43-43640de84a19",
+      "actions": [
+        { "name": "Throttle", "type": "Value", "id": "0c681352-8df0-478a-9f15-97a7e81f4c79", "expectedControlType": "Axis" },
+        { "name": "Brake", "type": "Value", "id": "ce43fb06-ec55-4349-bdda-a4fe4e0521fe", "expectedControlType": "Axis" },
+        { "name": "Steer", "type": "Value", "id": "9d4b1f37-fb2a-4bc8-9713-7368a6bc9e73", "expectedControlType": "Axis" },
+        { "name": "AirPitch", "type": "Value", "id": "ad8ca615-1887-4421-ae64-ef60e07fb4f8", "expectedControlType": "Axis" },
+        { "name": "AirWhip", "type": "Value", "id": "561484c0-18cd-48b9-a0a6-cba7b75e7862", "expectedControlType": "Axis" },
+        { "name": "Reset", "type": "Button", "id": "7e30e4e4-7275-48dc-88fd-1d581f1629d5", "expectedControlType": "Button" },
+        { "name": "CameraNext", "type": "Button", "id": "ed0174f0-4779-43e1-b435-2f9ba81ed485", "expectedControlType": "Button" },
+        { "name": "CameraPrevious", "type": "Button", "id": "c6241c47-82f8-46cd-89c2-71be63921dc2", "expectedControlType": "Button" }
+      ],
+      "bindings": [
+        { "id": "53ae9bb9-13d7-4752-967e-4f989e04b2e3", "path": "<Gamepad>/rightTrigger", "action": "Throttle", "groups": "Gamepad" },
+        { "id": "e959df7d-04af-432c-b6e3-f0ef0a1342be", "path": "<Keyboard>/w", "action": "Throttle", "groups": "Keyboard" },
+        { "id": "8c7e62bb-5c67-42c6-80d2-97c3e07ad29d", "path": "<Keyboard>/upArrow", "action": "Throttle", "groups": "Keyboard" },
+        { "id": "7c34d385-1dc2-4ddd-bbf4-6fc99eb3c824", "path": "<Gamepad>/leftTrigger", "action": "Brake", "groups": "Gamepad" },
+        { "id": "fb489ae5-d4b1-4630-8f33-a3b39171600b", "path": "<Keyboard>/s", "action": "Brake", "groups": "Keyboard" },
+        { "id": "393c149d-b7ce-4451-a105-f719d480831a", "path": "<Keyboard>/downArrow", "action": "Brake", "groups": "Keyboard" },
+        { "id": "7f93ddd1-e2b1-47b1-9ff7-5c865714f026", "path": "<Gamepad>/leftStick/x", "action": "Steer", "groups": "Gamepad" },
+        { "id": "5c419851-2d31-4455-9e66-729c751cf45c", "path": "1DAxis", "action": "Steer", "isComposite": true, "groups": "Keyboard" },
+        { "id": "0dd22216-9de1-4efe-8672-6864320fc99e", "name": "negative", "path": "<Keyboard>/a", "action": "Steer", "isPartOfComposite": true, "groups": "Keyboard" },
+        { "id": "ce5c3e51-05da-440f-86ae-68a13a93125f", "name": "positive", "path": "<Keyboard>/d", "action": "Steer", "isPartOfComposite": true, "groups": "Keyboard" },
+        { "id": "d480ca75-c24d-4510-8b8b-f34a2826308f", "path": "<Gamepad>/rightStick/y", "action": "AirPitch", "groups": "Gamepad" },
+        { "id": "105d95ee-2861-46e4-b27b-ae7aac712815", "path": "1DAxis", "action": "AirPitch", "isComposite": true, "groups": "Keyboard" },
+        { "id": "d295a0ab-0815-483f-8256-9b98bb34edcb", "name": "negative", "path": "<Keyboard>/f", "action": "AirPitch", "isPartOfComposite": true, "groups": "Keyboard" },
+        { "id": "8e331192-70cb-46d3-bbe0-c2e0b0e27ab8", "name": "positive", "path": "<Keyboard>/r", "action": "AirPitch", "isPartOfComposite": true, "groups": "Keyboard" },
+        { "id": "94c44867-8cc4-4414-a8e9-15a68cb37b5f", "path": "<Gamepad>/rightStick/x", "action": "AirWhip", "groups": "Gamepad" },
+        { "id": "dc657c4e-2c6a-4132-8ee1-e0fefcd106f7", "path": "1DAxis", "action": "AirWhip", "isComposite": true, "groups": "Keyboard" },
+        { "id": "009f016a-2817-4c4a-a341-59b416e241d9", "name": "negative", "path": "<Keyboard>/q", "action": "AirWhip", "isPartOfComposite": true, "groups": "Keyboard" },
+        { "id": "1d3bbc6d-1802-4973-a679-ab7c97dc9e29", "name": "positive", "path": "<Keyboard>/e", "action": "AirWhip", "isPartOfComposite": true, "groups": "Keyboard" },
+        { "id": "2ccb6202-362d-4c1b-8816-f2942b1e2556", "path": "<Gamepad>/buttonNorth", "action": "Reset", "groups": "Gamepad" },
+        { "id": "a0b30319-6151-46d7-867f-35c929927d14", "path": "<Keyboard>/backspace", "action": "Reset", "groups": "Keyboard" },
+        { "id": "76718e42-b01a-4ddb-b460-9d9d5f99f008", "path": "<Gamepad>/rightShoulder", "action": "CameraNext", "groups": "Gamepad" },
+        { "id": "dc1ee3c4-d3fc-4c7a-809e-d71851637058", "path": "<Keyboard>/c", "action": "CameraNext", "groups": "Keyboard" },
+        { "id": "85c5b974-1c9e-4fb3-b8fb-4c02bc0b8300", "path": "<Gamepad>/leftShoulder", "action": "CameraPrevious", "groups": "Gamepad" },
+        { "id": "950d8f7b-fd74-4ff0-aa06-3d524996334d", "path": "<Keyboard>/v", "action": "CameraPrevious", "groups": "Keyboard" }
+      ]
+    }
+  ],
+  "controlSchemes": [
+    { "name": "Gamepad", "bindingGroup": "Gamepad", "devices": [ { "devicePath": "<Gamepad>", "isOptional": false, "isOR": false } ] },
+    { "name": "Keyboard", "bindingGroup": "Keyboard", "devices": [ { "devicePath": "<Keyboard>", "isOptional": false, "isOR": false } ] }
+  ]
+}
