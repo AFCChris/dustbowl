@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Dustbowl/Scenes/Dustbowl_National_Flats.unity
+    guid: 8bb435d4359b5aa4dab138b832f65f55
+  - enabled: 1
     path: Assets/Dustbowl/Scenes/Dustbowl_BehaviourLab.unity
     guid: c1dd657aef807d4438bfdf8021d71acc
   m_configObjects: {}

@@ -1,6 +1,6 @@
 # Dustbowl development and migration plan
 
-Status: approved migration plan; Stage 3 arcade-controller slice implemented and awaiting user A/B feel review
+Status: roadmap redirected after user review; the Stage 3 BehaviourLab feel gate failed and the playable Unity parity milestone is now implemented for review
 
 Target: Unity 6.3 LTS, C# and URP
 
@@ -95,6 +95,24 @@ Before implementation begins, tag the approved baseline or record its immutable 
 ## Production-quality ladder
 
 Each stage has a different definition of “done”. Later-stage polish must not be pulled forward in a way that prevents earlier gameplay proof.
+
+### 2026-09 roadmap correction: playable parity first
+
+The Stage 3 BehaviourLab remains useful test infrastructure, but user review found it horrible and unplayable as a product experience. That is a failed subjective feel gate. The previously planned isolated Stage 4 landing-system task is superseded and must not start automatically.
+
+The immediate replacement milestone is a recognizable, complete Unity recreation of the current game: one real Dustbowl Flats National with a player, seven AI riders, a full three-lap race, cameras, crashes/recovery, HUD and results. Its implementation and review contract are recorded in `UNITY_PLAYABLE_PARITY_MILESTONE.md`.
+
+Future work proceeds in this order, subject to review at each playable gate:
+
+1. playable Unity recreation of current Dustbowl;
+2. improved bike, rider and opponent presentation and animation;
+3. improved terrain, tracks, jumps, environment and visuals;
+4. improved handling, landing/recovery, crashes and AI;
+5. expanded National content;
+6. Supercross, Baja and Stunt Quarry;
+7. many more tracks and production polish.
+
+National, Supercross, Baja and Stunt Quarry remain distinct planned pillars. This milestone does not authorize implementing the later pillars.
 
 ### Stage 0: approve and freeze the reference
 

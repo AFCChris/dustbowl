@@ -14,7 +14,8 @@ namespace Dustbowl.Course
     public enum CourseSurfaceModel
     {
         DustbowlFlatsReference,
-        RoundedCrestDevelopment
+        RoundedCrestDevelopment,
+        DustbowlFlatsNational
     }
 
     public enum CourseFeatureKind

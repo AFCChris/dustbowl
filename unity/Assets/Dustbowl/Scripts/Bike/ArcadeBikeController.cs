@@ -22,12 +22,14 @@ namespace Dustbowl.Bike
         private Vector3 lastSafePosition;
         private Quaternion lastSafeOrientation;
         private float spawnAlong;
+        private float spawnLateral;
         private float wipeoutTimer;
         private double elapsedSeconds;
         private double wipeoutCommittedSeconds;
         private bool initialized;
         private int takeoffCount;
         private int landingCount;
+        private bool raceControlEnabled = true;
 
         public ArcadeBikeTuning Tuning => tuning;
         public CourseSurface CurrentSurface => currentSurface;
@@ -51,9 +53,21 @@ namespace Dustbowl.Bike
 
         public void SetSurfaceAndSpawn(CourseSurface surface, float along)
         {
+            SetSurfaceAndSpawn(surface, along, 0f);
+        }
+
+        public void SetSurfaceAndSpawn(CourseSurface surface, float along, float lateral)
+        {
             currentSurface = surface;
             spawnAlong = along;
+            spawnLateral = lateral;
             InitializeAtSpawn();
+        }
+
+        public void SetRaceControlEnabled(bool enabled)
+        {
+            raceControlEnabled = enabled;
+            state.controlsEnabled = enabled && state.motionState != BikeMotionState.Wipeout;
         }
 
         public void InitializeAtSpawn()
@@ -70,7 +84,9 @@ namespace Dustbowl.Bike
                 currentSurface.Definition.TrySampleLine(spawnAlong, out line);
             }
 
-            GroundSample ground = currentSurface.SampleGround(line.center);
+            Vector3 lineForward = currentSurface.SampleCourse(line.center).frame.forward;
+            Vector3 lineRight = new(lineForward.z, 0f, -lineForward.x);
+            GroundSample ground = currentSurface.SampleGround(line.center + lineRight * spawnLateral);
             Quaternion orientation = Quaternion.LookRotation(
                 ground.course.frame.forward,
                 ground.normal);
@@ -88,7 +104,7 @@ namespace Dustbowl.Bike
                 surfaceAmount = ground.trackBlend,
                 visualLeanRadians = 0f,
                 lastLandingOutcome = Stage3LandingOutcome.ShortContact,
-                controlsEnabled = true
+                controlsEnabled = raceControlEnabled
             };
             wipeoutTimer = 0f;
             takeoffCount = 0;
@@ -110,6 +126,17 @@ namespace Dustbowl.Bike
 
             elapsedSeconds += deltaTime;
             state.tick++;
+            if (!raceControlEnabled && state.motionState != BikeMotionState.Wipeout)
+            {
+                GroundSample heldGround = currentSurface.SampleGround(state.position);
+                state.position.y = heldGround.point.y + tuning.RideHeight + 0.05f;
+                state.velocity = Vector3.zero;
+                state.controlsEnabled = false;
+                ApplyTransform();
+                RecordTick(default);
+                return;
+            }
+
             if (state.motionState == BikeMotionState.Wipeout)
             {
                 TickWipeout(deltaTime);
@@ -373,7 +400,7 @@ namespace Dustbowl.Bike
                 Mathf.Min(state.recentClimbRate, tuning.MaximumLaunchVerticalSpeed));
             state.motionState = BikeMotionState.Airborne;
             state.airborneSeconds = 0f;
-            state.controlsEnabled = true;
+            state.controlsEnabled = raceControlEnabled;
             lastTakeoffTrigger = trigger;
             takeoffCount++;
             telemetry?.Record(new TakeoffEvent
@@ -452,7 +479,7 @@ namespace Dustbowl.Bike
             }
 
             state.motionState = BikeMotionState.Grounded;
-            state.controlsEnabled = true;
+            state.controlsEnabled = raceControlEnabled;
         }
 
         private void CommitWipeout()
@@ -508,7 +535,7 @@ namespace Dustbowl.Bike
             Vector3 forward = Vector3.ProjectOnPlane(state.orientation * Vector3.forward, Vector3.up);
             state.yawRadians = Mathf.Atan2(forward.x, forward.z);
             state.motionState = BikeMotionState.Grounded;
-            state.controlsEnabled = true;
+            state.controlsEnabled = raceControlEnabled;
             state.airborneSeconds = 0f;
             state.recentClimbRate = 0f;
             state.visualLeanRadians = 0f;
