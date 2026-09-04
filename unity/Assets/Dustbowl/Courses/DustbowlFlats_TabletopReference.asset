@@ -1,0 +1,283 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1d7690b2382b2d499fa3811a48d9211, type: 3}
+  m_Name: DustbowlFlats_TabletopReference
+  m_EditorClassIdentifier: Dustbowl.Foundation::Dustbowl.Course.CourseDefinition
+  courseId: flats
+  segmentId: flats-tabletop-reference
+  sourceReference: web-v0.18-behavioural-baseline:src/game.js
+  sourceSeed: 0
+  sourceLapLength: 1510.5408
+  linePoints:
+  - center: {x: 263.61404, y: -20.270086, z: -42.805923}
+    along: 331.2583
+    bank: 0.291033
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.963537
+  - center: {x: 263.63306, y: -20.338324, z: -41.36896}
+    along: 332.69537
+    bank: 0.257981
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.964714
+  - center: {x: 263.61212, y: -20.415056, z: -39.842854}
+    along: 334.22162
+    bank: 0.226756
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.96589
+  - center: {x: 263.55225, y: -20.499428, z: -38.230713}
+    along: 335.83487
+    bank: 0.19904
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.967066
+  - center: {x: 263.45435, y: -20.590048, z: -36.535656}
+    along: 337.53278
+    bank: 0.175344
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.968243
+  - center: {x: 263.31934, y: -20.684961, z: -34.760796}
+    along: 339.31274
+    bank: 0.155443
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.969419
+  - center: {x: 263.14822, y: -20.78172, z: -32.909252}
+    along: 341.17218
+    bank: 0.138795
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.970595
+  - center: {x: 262.9419, y: -20.877665, z: -30.984133}
+    along: 343.10834
+    bank: 0.124818
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.971772
+  - center: {x: 262.70132, y: -20.970362, z: -28.988558}
+    along: 345.11835
+    bank: 0.113004
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.972948
+  - center: {x: 262.42743, y: -21.057985, z: -26.92564}
+    along: 347.19937
+    bank: 0.102945
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.974125
+  - center: {x: 262.12122, y: -21.139486, z: -24.798496}
+    along: 349.34845
+    bank: 0.094324
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.975301
+  - center: {x: 261.78357, y: -21.214472, z: -22.61024}
+    along: 351.5626
+    bank: 0.086891
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.976477
+  - center: {x: 261.41544, y: -21.282879, z: -20.363987}
+    along: 353.8388
+    bank: 0.080447
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.977654
+  - center: {x: 261.0178, y: -21.344658, z: -18.062853}
+    along: 356.17407
+    bank: 0.074835
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.97883
+  - center: {x: 260.59155, y: -21.399769, z: -15.709949}
+    along: 358.56525
+    bank: 0.069929
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.980006
+  - center: {x: 260.1377, y: -21.448685, z: -13.308394}
+    along: 361.0093
+    bank: 0.065626
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.981183
+  - center: {x: 259.65714, y: -21.493216, z: -10.861302}
+    along: 363.50314
+    bank: 0.061841
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.982359
+  - center: {x: 259.15082, y: -21.537144, z: -8.371787}
+    along: 366.04364
+    bank: 0.058506
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.983535
+  - center: {x: 258.61972, y: -21.586164, z: -5.842965}
+    along: 368.62762
+    bank: 0.055564
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.984712
+  - center: {x: 258.06473, y: -21.647131, z: -3.277951}
+    along: 371.25198
+    bank: 0.052967
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.985888
+  - center: {x: 257.48685, y: -21.726988, z: -0.67986}
+    along: 373.91357
+    bank: 0.050676
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.987064
+  - center: {x: 256.887, y: -21.831757, z: 1.948194}
+    along: 376.60922
+    bank: 0.048657
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.988241
+  - center: {x: 256.2661, y: -21.965776, z: 4.603096}
+    along: 379.33575
+    bank: 0.046883
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.989417
+  - center: {x: 255.62515, y: -22.131172, z: 7.281729}
+    along: 382.09
+    bank: 0.04533
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.990593
+  - center: {x: 254.96506, y: -22.327768, z: 9.98098}
+    along: 384.8688
+    bank: 0.04398
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.99177
+  - center: {x: 254.28676, y: -22.553434, z: 12.697734}
+    along: 387.66895
+    bank: 0.042815
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.992946
+  - center: {x: 253.59122, y: -22.804823, z: 15.428875}
+    along: 390.48727
+    bank: 0.041823
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.994122
+  - center: {x: 252.87938, y: -23.078127, z: 18.17129}
+    along: 393.32056
+    bank: 0.040992
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.995299
+  - center: {x: 252.15218, y: -23.369556, z: 20.92186}
+    along: 396.16562
+    bank: 0.040314
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.996475
+  - center: {x: 251.41055, y: -23.675331, z: 23.677473}
+    along: 399.0193
+    bank: 0.039782
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.997651
+  - center: {x: 250.65547, y: -23.991316, z: 26.435015}
+    along: 401.87836
+    bank: 0.03939
+    racingLineOffset: 0
+    recommendedSpeedScale: 0.998828
+  - center: {x: 249.88786, y: -24.312647, z: 29.191368}
+    along: 404.7396
+    bank: 0.039135
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.000004
+  - center: {x: 249.10867, y: -24.633755, z: 31.94342}
+    along: 407.59982
+    bank: 0.039015
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.001181
+  - center: {x: 248.31883, y: -24.948942, z: 34.688053}
+    along: 410.45584
+    bank: 0.039031
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.002357
+  - center: {x: 247.51932, y: -25.253279, z: 37.422157}
+    along: 413.30444
+    bank: 0.039182
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.003533
+  - center: {x: 246.71104, y: -25.543276, z: 40.142612}
+    along: 416.14246
+    bank: 0.039473
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.00471
+  - center: {x: 245.89497, y: -25.816946, z: 42.846306}
+    along: 418.9666
+    bank: 0.039907
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.005886
+  - center: {x: 245.07205, y: -26.07328, z: 45.53012}
+    along: 421.77374
+    bank: 0.040492
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.007062
+  - center: {x: 244.2432, y: -26.311562, z: 48.190945}
+    along: 424.56067
+    bank: 0.041235
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.008239
+  - center: {x: 243.4094, y: -26.531054, z: 50.825657}
+    along: 427.3242
+    bank: 0.042147
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.009415
+  - center: {x: 242.57155, y: -26.731316, z: 53.431152}
+    along: 430.0611
+    bank: 0.043241
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.010591
+  - center: {x: 241.73062, y: -26.91285, z: 56.00431}
+    along: 432.76816
+    bank: 0.044535
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.011768
+  - center: {x: 240.88757, y: -27.077509, z: 58.54201}
+    along: 435.44223
+    bank: 0.046046
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.012944
+  - center: {x: 240.04332, y: -27.228168, z: 61.04115}
+    along: 438.08014
+    bank: 0.0478
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.01412
+  - center: {x: 239.19882, y: -27.367798, z: 63.498608}
+    along: 440.67865
+    bank: 0.049825
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.015297
+  - center: {x: 238.35503, y: -27.498476, z: 65.91126}
+    along: 443.2346
+    bank: 0.052155
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.016473
+  - center: {x: 237.51288, y: -27.620955, z: 68.27601}
+    along: 445.7448
+    bank: 0.054832
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.017649
+  - center: {x: 236.67331, y: -27.734865, z: 70.58973}
+    along: 448.20615
+    bank: 0.057908
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.018826
+  - center: {x: 235.83727, y: -27.839357, z: 72.849304}
+    along: 450.61545
+    bank: 0.061445
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.020002
+  - center: {x: 235.0057, y: -27.933792, z: 75.05163}
+    along: 452.96954
+    bank: 0.065519
+    racingLineOffset: 0
+    recommendedSpeedScale: 1.021178
+  features:
+  - id: flats-section-4-tabletop
+    kind: 1
+    startAlong: 373.72235
+    length: 36
+    height: 3.6
+    wavelength: 0
+    sourceSection: Dustbowl Flats section 4 (zero-based)
+  spawnHints:
+  - id: segment-entry
+    along: 334.22162
+    lateralOffset: 0
+    safeForReset: 1

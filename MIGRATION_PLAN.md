@@ -1,6 +1,6 @@
 # Dustbowl development and migration plan
 
-Status: approved migration plan; Stage 1 foundation established
+Status: approved migration plan; Stage 2 course/terrain contract established
 
 Target: Unity 6.3 LTS, C# and URP
 

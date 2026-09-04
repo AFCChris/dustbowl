@@ -8,7 +8,7 @@ Read first: `AGENTS.md`
 
 Build the long-term Dustbowl version without losing the tuned arcade behaviour already present in the Three.js game, and raise it into a polished modern indie game. Treat the web implementation as valuable executable design evidence, not disposable prototype code and not a visual-quality target.
 
-Stage 1 of the approved Unity 6.3 LTS, C# and URP migration establishes the project foundation only. The bike-controller port begins no earlier than Stage 2 and requires the Stage 1 review gate.
+Stage 1 of the approved Unity 6.3 LTS, C# and URP migration establishes the project foundation only. Stage 2 establishes the authoritative course/terrain contract and one reference segment. The bike-controller port begins no earlier than Stage 3 and requires the Stage 2 review gate.
 
 ## Authority order
 

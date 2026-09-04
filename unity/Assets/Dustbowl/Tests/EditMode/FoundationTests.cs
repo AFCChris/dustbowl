@@ -99,7 +99,13 @@ namespace Dustbowl.Tests
         [Test]
         public void BehaviourLabSceneLoadsWithFoundationOnly()
         {
-            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+            Scene scene = SceneManager.GetSceneByPath(ScenePath);
+            bool openedForTest = !scene.IsValid() || !scene.isLoaded;
+            if (openedForTest)
+            {
+                scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+            }
+
             try
             {
                 BehaviourLabBootstrap bootstrap = scene.GetRootGameObjects()
@@ -113,7 +119,10 @@ namespace Dustbowl.Tests
             }
             finally
             {
-                EditorSceneManager.CloseScene(scene, true);
+                if (openedForTest)
+                {
+                    EditorSceneManager.CloseScene(scene, true);
+                }
             }
         }
     }
