@@ -1,0 +1,231 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1d7690b2382b2d499fa3811a48d9211, type: 3}
+  m_Name: BehaviourLab_NaturalRoundedCrest
+  m_EditorClassIdentifier: Dustbowl.Foundation::Dustbowl.Course.CourseDefinition
+  courseId: behaviour-lab
+  segmentId: natural-rounded-crest
+  sourceReference: Stage 3 development-only recent-climb-rate validation strip
+  sourceSeed: 0
+  sourceLapLength: 160
+  linePoints:
+  - center: {x: 340, y: 8, z: -110}
+    along: 0
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -106}
+    along: 4
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -102}
+    along: 8
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -98}
+    along: 12
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -94}
+    along: 16
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -90}
+    along: 20
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -86}
+    along: 24
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -82}
+    along: 28
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -78}
+    along: 32
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -74}
+    along: 36
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -70}
+    along: 40
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -66}
+    along: 44
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -62}
+    along: 48
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -58}
+    along: 52
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -54}
+    along: 56
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: -50}
+    along: 60
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8.181555, z: -46}
+    along: 64
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8.694826, z: -42}
+    along: 68
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 9.451064, z: -38}
+    along: 72
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 10.31951, z: -34}
+    along: 76
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 11.15, z: -30}
+    along: 80
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 11.798936, z: -26}
+    along: 84
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 12.15411, z: -22}
+    along: 88
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 12.15411, z: -18}
+    along: 92
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 11.798935, z: -14}
+    along: 96
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 11.15, z: -10}
+    along: 100
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 10.3195095, z: -6}
+    along: 104
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 9.451064, z: -2}
+    along: 108
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8.694825, z: 2}
+    along: 112
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8.181555, z: 6}
+    along: 116
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 10}
+    along: 120
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 14}
+    along: 124
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 18}
+    along: 128
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 22}
+    along: 132
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 26}
+    along: 136
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 30}
+    along: 140
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 34}
+    along: 144
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 38}
+    along: 148
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 42}
+    along: 152
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 46}
+    along: 156
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  - center: {x: 340, y: 8, z: 50}
+    along: 160
+    bank: 0
+    racingLineOffset: 0
+    recommendedSpeedScale: 1
+  features: []
+  spawnHints:
+  - id: crest-approach
+    along: 5
+    lateralOffset: 0
+    safeForReset: 1

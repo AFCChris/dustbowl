@@ -13,5 +13,8 @@ namespace Dustbowl.Input
         public bool resetPressed;
         public bool cameraNextPressed;
         public bool cameraPreviousPressed;
+        public bool scenarioNextPressed;
+        public bool telemetryTogglePressed;
+        public bool devWipeoutPressed;
     }
 }

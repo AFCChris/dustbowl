@@ -20,6 +20,31 @@ namespace Dustbowl.Bike
         Wipeout
     }
 
+    public enum Stage3LandingOutcome
+    {
+        ShortContact,
+        Accepted,
+        Wipeout
+    }
+
+    public enum TakeoffTrigger
+    {
+        None,
+        ContactLoss,
+        Lip,
+        RoundedCrest,
+        LipAndRoundedCrest
+    }
+
+    [Serializable]
+    public struct Stage3LandingResult
+    {
+        public Stage3LandingOutcome outcome;
+        public float surfaceAlignment;
+        public float impactDownwardSpeed;
+        public float speedRetention;
+    }
+
     [Serializable]
     public struct BikeControllerState
     {
@@ -28,5 +53,12 @@ namespace Dustbowl.Bike
         public Vector3 velocity;
         public Quaternion orientation;
         public BikeMotionState motionState;
+        public float yawRadians;
+        public float recentClimbRate;
+        public float airborneSeconds;
+        public float surfaceAmount;
+        public float visualLeanRadians;
+        public Stage3LandingOutcome lastLandingOutcome;
+        public bool controlsEnabled;
     }
 }

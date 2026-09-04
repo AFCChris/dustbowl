@@ -27,7 +27,7 @@ namespace Dustbowl.Tests
             string[] expected =
             {
                 "Throttle", "Brake", "Steer", "AirPitch", "AirWhip", "Reset",
-                "CameraNext", "CameraPrevious"
+                "CameraNext", "CameraPrevious", "ScenarioNext", "TelemetryToggle", "DevWipeout"
             };
             string[] actual = asset.FindActionMap("Player", true).actions.Select(action => action.name).ToArray();
             Assert.That(actual, Is.EquivalentTo(expected));

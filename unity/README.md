@@ -1,8 +1,10 @@
 # Dustbowl Unity foundation
 
-This Unity 6.3 LTS project contains the approved Stage 1 foundation and the
-Stage 2 course/terrain contract. It intentionally contains no bike controller,
-gameplay tuning, production art, AI or complete course port.
+This Unity 6.3 LTS project contains the approved Stage 1 foundation, Stage 2
+course/terrain contract and the Stage 3 arcade-controller BehaviourLab slice.
+Stage 3 uses development-only tuning, telemetry, terrain strips and placeholder
+visuals. It intentionally contains no production art, AI, complete course port,
+four-tier landing system or realistic vehicle simulation.
 
 ## Editor and packages
 
@@ -18,14 +20,20 @@ controls nor platform-specific gameplay.
 ## Behaviour lab
 
 Open `Assets/Dustbowl/Scenes/Dustbowl_BehaviourLab.unity`. The scene contains a
-placeholder bike mount, semantic input, telemetry, simulation-clock and
-camera-mode infrastructure plus one Dustbowl Flats reference segment. Its
-render mesh and collision mesh are the same asset generated from
-`ICourseSurface`; the development probe and gizmos expose the sampled contract.
+code-controlled placeholder bike, semantic input, telemetry, simulation-clock and
+three playable camera modes. It contains the Stage 2 authored-tabletop segment and
+an unfeatured rounded-crest test strip. Each strip's render mesh and collision
+mesh are the same asset generated from `ICourseSurface`; the development probe
+and gizmos expose the sampled contract.
 
 The fixed simulation interval is 1/60 second. Gamepad is the reference input;
 keyboard bindings map to the same semantic actions.
 
-Run the Edit Mode suite in Unity Test Runner to verify the foundation and
-course/terrain contracts. See `../UNITY_COURSE_TERRAIN_SPEC.md` for source
-mapping, approximations and Stage 3 constraints.
+Run the Edit Mode and Play Mode suites in Unity Test Runner. The menu command
+`Dustbowl > Stage 3 > Verify arcade controller` performs the complete scripted
+foundation/course/controller verification. `Dustbowl > Stage 3 > Build Windows
+development player` creates a review build outside the Unity project by default.
+
+See `../UNITY_COURSE_TERRAIN_SPEC.md` for the course contract and
+`../UNITY_CONTROLLER_STAGE3.md` for controls, source mapping, tuning,
+verification, telemetry and known limitations.

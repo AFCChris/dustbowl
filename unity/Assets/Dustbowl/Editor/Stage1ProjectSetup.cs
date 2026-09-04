@@ -53,7 +53,7 @@ namespace Dustbowl.Editor
             string[] requiredActions =
             {
                 "Throttle", "Brake", "Steer", "AirPitch", "AirWhip", "Reset",
-                "CameraNext", "CameraPrevious"
+                "CameraNext", "CameraPrevious", "ScenarioNext", "TelemetryToggle", "DevWipeout"
             };
             InputActionMap player = actions.FindActionMap("Player", true);
             foreach (string action in requiredActions)

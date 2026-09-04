@@ -9,22 +9,40 @@ namespace Dustbowl.Course
     {
         [SerializeField] private CourseDefinition definition;
         [SerializeField] private Mesh generatedMesh;
+        [SerializeField] private CourseSurfaceModel surfaceModel;
 
         public CourseDefinition Definition => definition;
         public Mesh GeneratedMesh => generatedMesh;
+        public CourseSurfaceModel SurfaceModel => surfaceModel;
 
         public void Configure(CourseDefinition courseDefinition, Mesh sharedMesh)
         {
+            Configure(courseDefinition, sharedMesh, CourseSurfaceModel.DustbowlFlatsReference);
+        }
+
+        public void Configure(
+            CourseDefinition courseDefinition,
+            Mesh sharedMesh,
+            CourseSurfaceModel model)
+        {
             definition = courseDefinition;
             generatedMesh = sharedMesh;
+            surfaceModel = model;
             ApplySharedMesh();
         }
 
         public float SampleHeight(Vector3 worldPosition)
         {
             EnsureDefinition();
-            float natural = DustbowlFlatsHeight.Sample(worldPosition.x, worldPosition.z);
             CourseSample course = SampleCourse(worldPosition);
+            if (surfaceModel == CourseSurfaceModel.RoundedCrestDevelopment)
+            {
+                return course.isValid
+                    ? RoundedCrestReference.SampleHeight(course.along)
+                    : RoundedCrestReference.BaseHeight;
+            }
+
+            float natural = DustbowlFlatsHeight.Sample(worldPosition.x, worldPosition.z);
             float offset = Mathf.Abs(course.signedLateralDistance);
             float influenceLimit = DustbowlFlatsReferenceSegment.TrackHalfWidth
                 + DustbowlFlatsReferenceSegment.BermWidth
@@ -74,13 +92,7 @@ namespace Dustbowl.Course
             CourseSample course = SampleCourse(worldPosition);
             float height = SampleHeight(worldPosition);
             Vector3 normal = SampleNormal(worldPosition);
-            float trackBlend = course.isValid
-                ? 1f - SmoothStep(
-                    DustbowlFlatsReferenceSegment.TrackHalfWidth,
-                    DustbowlFlatsReferenceSegment.TrackHalfWidth
-                        + DustbowlFlatsReferenceSegment.BermWidth * 0.8f,
-                    Mathf.Abs(course.signedLateralDistance))
-                : 0f;
+            float trackBlend = CalculateTrackBlend(course);
 
             return new GroundSample
             {
@@ -136,9 +148,9 @@ namespace Dustbowl.Course
             float along = Mathf.LerpUnclamped(first.along, second.along, bestT);
             float gradedHeight = Mathf.LerpUnclamped(first.center.y, second.center.y, bestT);
             float bank = Mathf.LerpUnclamped(first.bank, second.bank, bestT);
-            float centerSurface = gradedHeight
-                - DustbowlFlatsReferenceSegment.TrackCut
-                + SampleFeatureHeight(along, 0f);
+            float centerSurface = surfaceModel == CourseSurfaceModel.RoundedCrestDevelopment
+                ? RoundedCrestReference.SampleHeight(along)
+                : gradedHeight - DustbowlFlatsReferenceSegment.TrackCut + SampleFeatureHeight(along, 0f);
             Vector3 center = new(
                 Mathf.LerpUnclamped(first.center.x, second.center.x, bestT),
                 centerSurface,
@@ -191,6 +203,18 @@ namespace Dustbowl.Course
             }
 
             float offset = Mathf.Abs(course.signedLateralDistance);
+            if (surfaceModel == CourseSurfaceModel.RoundedCrestDevelopment)
+            {
+                if (offset <= RoundedCrestReference.PackedHalfWidth)
+                {
+                    return SurfaceType.PackedTrack;
+                }
+
+                return offset <= RoundedCrestReference.LooseHalfWidth
+                    ? SurfaceType.LooseSand
+                    : SurfaceType.NaturalSand;
+            }
+
             if (offset <= DustbowlFlatsReferenceSegment.TrackHalfWidth)
             {
                 return SurfaceType.PackedTrack;
@@ -239,6 +263,29 @@ namespace Dustbowl.Course
                 default:
                     return Mathf.Pow(Mathf.Sin(Mathf.PI * t), 1.35f) * feature.height * lateral;
             }
+        }
+
+        private float CalculateTrackBlend(CourseSample course)
+        {
+            if (!course.isValid)
+            {
+                return 0f;
+            }
+
+            float offset = Mathf.Abs(course.signedLateralDistance);
+            if (surfaceModel == CourseSurfaceModel.RoundedCrestDevelopment)
+            {
+                return 1f - SmoothStep(
+                    RoundedCrestReference.PackedHalfWidth,
+                    RoundedCrestReference.LooseHalfWidth,
+                    offset);
+            }
+
+            return 1f - SmoothStep(
+                DustbowlFlatsReferenceSegment.TrackHalfWidth,
+                DustbowlFlatsReferenceSegment.TrackHalfWidth
+                    + DustbowlFlatsReferenceSegment.BermWidth * 0.8f,
+                offset);
         }
 
         private void OnValidate()

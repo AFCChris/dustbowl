@@ -11,6 +11,12 @@ namespace Dustbowl.Course
         LooseSand
     }
 
+    public enum CourseSurfaceModel
+    {
+        DustbowlFlatsReference,
+        RoundedCrestDevelopment
+    }
+
     public enum CourseFeatureKind
     {
         Table,

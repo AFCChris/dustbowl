@@ -26,6 +26,10 @@ namespace Dustbowl.Telemetry
         public float recentClimbRate;
         public float launchVerticalVelocity;
         public Quaternion orientation;
+        public Vector3 position;
+        public float trackAlong;
+        public float trackLateral;
+        public TakeoffTrigger trigger;
     }
 
     [Serializable]
@@ -52,6 +56,10 @@ namespace Dustbowl.Telemetry
         public float alignmentErrorDegrees;
         public float impactDownwardSpeed;
         public LandingTier classification;
+        public Stage3LandingOutcome stage3Outcome;
+        public float travelAlignment;
+        public float speedRetention;
+        public Vector3 touchdownLocation;
     }
 
     [Serializable]
@@ -61,6 +69,7 @@ namespace Dustbowl.Telemetry
         public double elapsedSeconds;
         public Vector3 position;
         public Quaternion orientation;
+        public Vector3 velocity;
     }
 
     [Serializable]
@@ -71,6 +80,7 @@ namespace Dustbowl.Telemetry
         public Vector3 restoredPosition;
         public Quaternion restoredOrientation;
         public bool followsWipeout;
+        public string reason;
     }
 
     [Serializable]

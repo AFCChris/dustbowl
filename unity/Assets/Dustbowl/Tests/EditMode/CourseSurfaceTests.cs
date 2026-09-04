@@ -146,7 +146,8 @@ namespace Dustbowl.Tests
             Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
             CourseSurface surface = scene.GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<CourseSurface>(true))
-                .Single();
+                .Single(candidate =>
+                    candidate.SurfaceModel == CourseSurfaceModel.DustbowlFlatsReference);
             Mesh mesh = surface.GeneratedMesh;
 
             Assert.That(surface.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(mesh));

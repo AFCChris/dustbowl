@@ -1,0 +1,11 @@
+{
+  "name": "Dustbowl.Controller.PlayModeTests",
+  "rootNamespace": "Dustbowl.Tests",
+  "references": [
+    "Dustbowl.Foundation",
+    "Unity.InputSystem"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

@@ -1,6 +1,6 @@
 # Dustbowl development and migration plan
 
-Status: approved migration plan; Stage 2 course/terrain contract established
+Status: approved migration plan; Stage 3 arcade-controller slice implemented and awaiting user A/B feel review
 
 Target: Unity 6.3 LTS, C# and URP
 

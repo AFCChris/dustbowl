@@ -16,6 +16,9 @@ namespace Dustbowl.Input
         private InputAction reset;
         private InputAction cameraNext;
         private InputAction cameraPrevious;
+        private InputAction scenarioNext;
+        private InputAction telemetryToggle;
+        private InputAction devWipeout;
 
         public PlayerInputSnapshot Current { get; private set; }
         public InputActionAsset Actions => actions;
@@ -54,7 +57,10 @@ namespace Dustbowl.Input
                 airWhip = airWhip.ReadValue<float>(),
                 resetPressed = reset.WasPressedThisFrame(),
                 cameraNextPressed = cameraNext.WasPressedThisFrame(),
-                cameraPreviousPressed = cameraPrevious.WasPressedThisFrame()
+                cameraPreviousPressed = cameraPrevious.WasPressedThisFrame(),
+                scenarioNextPressed = scenarioNext.WasPressedThisFrame(),
+                telemetryTogglePressed = telemetryToggle.WasPressedThisFrame(),
+                devWipeoutPressed = devWipeout.WasPressedThisFrame()
             };
         }
 
@@ -74,6 +80,9 @@ namespace Dustbowl.Input
             reset = player.FindAction("Reset", true);
             cameraNext = player.FindAction("CameraNext", true);
             cameraPrevious = player.FindAction("CameraPrevious", true);
+            scenarioNext = player.FindAction("ScenarioNext", true);
+            telemetryToggle = player.FindAction("TelemetryToggle", true);
+            devWipeout = player.FindAction("DevWipeout", true);
         }
     }
 }

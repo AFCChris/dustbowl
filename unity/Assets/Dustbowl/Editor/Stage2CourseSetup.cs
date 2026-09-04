@@ -61,7 +61,8 @@ namespace Dustbowl.Editor
             Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
             CourseSurface surface = scene.GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<CourseSurface>(true))
-                .SingleOrDefault();
+                .SingleOrDefault(candidate =>
+                    candidate.SurfaceModel == CourseSurfaceModel.DustbowlFlatsReference);
             if (surface == null || surface.Definition != definition || surface.GeneratedMesh == null)
             {
                 throw new InvalidOperationException("The behaviour lab course surface is incomplete.");
