@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Collections.Generic;
 using Dustbowl.Course;
 using Dustbowl.Race;
 using NUnit.Framework;
@@ -12,6 +13,7 @@ namespace Dustbowl.Tests
     {
         private const string DefinitionPath = "Assets/Dustbowl/Courses/DustbowlFlats_National.asset";
         private const string ScenePath = "Assets/Dustbowl/Scenes/Dustbowl_National_Flats.unity";
+        private const string DesertMeshPath = "Assets/Dustbowl/Courses/DustbowlFlats_NationalDesert.asset";
 
         [Test]
         public void CompleteNationalCourseMatchesCanonicalWebShape()
@@ -27,6 +29,68 @@ namespace Dustbowl.Tests
             Assert.That(definition.Features.Count(value => value.kind == CourseFeatureKind.Tabletop), Is.EqualTo(1));
             Assert.That(definition.Features.Count(value => value.kind == CourseFeatureKind.Whoops), Is.EqualTo(3));
             Assert.That(definition.Features.Count(value => value.kind == CourseFeatureKind.Ripples), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void NationalDirectionPreservesTheWebClockwiseLapAcrossCoordinateHandedness()
+        {
+            CourseDefinition definition = AssetDatabase.LoadAssetAtPath<CourseDefinition>(DefinitionPath);
+            float unityArea = SignedArea(definition.LinePoints, false);
+            float reconstructedWebArea = SignedArea(definition.LinePoints, true);
+
+            Assert.That(unityArea, Is.LessThan(0f),
+                "The Unity X/Z loop must be mirrored so its traversal is not anti-clockwise.");
+            Assert.That(reconstructedWebArea, Is.GreaterThan(0f),
+                "Mapping Unity Z back to web Z must reproduce the reviewed web trackPts order.");
+        }
+
+        [Test]
+        public void DesertRenderMeshCannotBridgeAcrossOrRiseAboveTheRideableCourse()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath);
+            CourseSurface surface = scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<CourseSurface>(true)).Single();
+            Mesh desert = AssetDatabase.LoadAssetAtPath<Mesh>(DesertMeshPath);
+            Assert.That(desert, Is.Not.Null);
+
+            Vector3[] vertices = desert.vertices;
+            float highestDesertGap = float.NegativeInfinity;
+            foreach (Vector3 vertex in vertices)
+            {
+                highestDesertGap = Mathf.Max(highestDesertGap, vertex.y - surface.SampleHeight(vertex));
+            }
+            Assert.That(highestDesertGap, Is.LessThanOrEqualTo(-.10f),
+                "The visual desert must remain below the shared authoritative height.");
+
+            int[] triangles = desert.triangles;
+            float nearestTriangleToCourse = float.PositiveInfinity;
+            for (int index = 0; index < triangles.Length; index += 3)
+            {
+                Vector3 centroid = (vertices[triangles[index]]
+                    + vertices[triangles[index + 1]]
+                    + vertices[triangles[index + 2]]) / 3f;
+                nearestTriangleToCourse = Mathf.Min(
+                    nearestTriangleToCourse,
+                    surface.SampleCourse(centroid).distanceFromCenter);
+            }
+            Assert.That(nearestTriangleToCourse, Is.GreaterThanOrEqualTo(26.5f),
+                "A desert triangle intrudes into the protected course corridor.");
+        }
+
+        [Test]
+        public void MinimapTracksTheCoursePlayerAndAllSevenOpponents()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath);
+            NationalRaceHud hud = scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<NationalRaceHud>(true)).Single();
+            var positions = new List<Vector2>();
+            hud.CollectMinimapRiderPositions(positions);
+
+            Assert.That(hud.MinimapCoursePointCount, Is.EqualTo(685));
+            Assert.That(hud.MinimapTrackedRiderCount, Is.EqualTo(8));
+            Assert.That(positions.Count, Is.EqualTo(8));
+            Assert.That(positions.All(point =>
+                point.x >= 0f && point.x <= 1f && point.y >= 0f && point.y <= 1f), Is.True);
         }
 
         [Test]
@@ -85,6 +149,21 @@ namespace Dustbowl.Tests
                 Assert.That(opponent.Finished, Is.True, $"{opponent.RiderName} did not finish.");
                 Assert.That(opponent.FinishTime, Is.GreaterThan(0f));
             }
+        }
+
+        private static float SignedArea(System.Collections.Generic.IReadOnlyList<CourseLinePoint> points, bool webSpace)
+        {
+            float twiceArea = 0f;
+            for (int index = 0; index < points.Count - 1; index++)
+            {
+                Vector3 current = points[index].center;
+                Vector3 next = points[index + 1].center;
+                float currentZ = webSpace ? DustbowlFlatsNationalCourse.WebZFromUnity(current.z) : current.z;
+                float nextZ = webSpace ? DustbowlFlatsNationalCourse.WebZFromUnity(next.z) : next.z;
+                twiceArea += current.x * nextZ - next.x * currentZ;
+            }
+
+            return twiceArea * .5f;
         }
     }
 }

@@ -10,6 +10,15 @@ This milestone replaces the rejected engineering-lab-only direction with one com
 
 The preserved web reference is tag `web-v0.18-behavioural-baseline` at `80e76510f9a8fd34cb213e36fd54cba227a31bce`. Live `src/game.js` remains untouched.
 
+## First human-playtest corrections
+
+The first Windows playtest identified four parity defects. This corrective pass remains part of the playable-parity milestone rather than starting a later enhancement stage.
+
+- **Race direction:** Three.js is right-handed and Unity is left-handed. The original port copied web X/Z coordinates directly, reflecting the course winding. National course generation now converts web Z to Unity Z with an explicit `-1` handedness transform while retaining increasing `trackPts` order, start rotation, features, lap distance and forward sector crossing. Mapping the generated points back to web coordinates reproduces the reviewed clockwise web minimap loop.
+- **Yellow surface intersections:** the broad desert renderer previously sampled uncut `DustbowlFlatsHeight` while the authoritative course/collision mesh sampled the track-cut `CourseSurface`. The desert therefore remained about the `1.6 m` track cut above the rider in some areas. Its mesh now samples the same authoritative height, sits `0.12 m` below it, and omits coarse desert cells through the protected course corridor. The high-resolution authoritative surface continues across that corridor, so the visible and physical lap no longer disagree.
+- **Basic palette:** the placeholder scene now uses the actual Dustbowl Flats web palette for pale sand (`#E3BE86`), ochre shoulders (`#B4783C`), packed red dirt (`#8A4520`), dusk-blue sky (`#1D3A63`), warm haze (`#E8AC78`), sunlight, rocks and scrub. Terrain materials are non-metallic. This is a readability correction, not final production art.
+- **Minimap:** `NationalRaceHud` now draws a lightweight course outline in web-map orientation, a start marker, a heading-aware player marker and seven color-coded live opponent markers. It reads the authoritative `CourseDefinition` and rider transforms rather than maintaining separate race progress.
+
 ## Architecture
 
 - `DustbowlFlatsNationalCourse` deterministically rebuilds the web course's nine normalized layout points, Hermite centreline, seeded land height, nine-pass grade smoothing, twelve-pass bank smoothing, authored start rotation, section speed hints and all nine feature zones.
@@ -20,7 +29,7 @@ The preserved web reference is tag `web-v0.18-behavioural-baseline` at `80e76510
 - `NationalAIRider` provides seven deterministic, pace-varied opponents. They follow the authoritative line, respect section pace hints, vary their line, make brief pace mistakes, receive soft five-percent gap adjustment, traverse authored terrain and visually release over major jump downsides.
 - `RaceLapTracker` is shared deterministic lap logic. A rider must visit the 45–75 percent sector before an 80-to-20 percent start-line wrap counts.
 - `ArcadeBikeCamera` and `CameraModeController` keep Chase, Close and Overhead as equal playable modes.
-- `NationalRaceHud` presents countdown, lap, position, speed, race time, active camera and an eight-rider results board.
+- `NationalRaceHud` presents countdown, lap, position, speed, race time, active camera, live eight-rider minimap and an eight-rider results board.
 - `BikePresentation` is visual-only: wheel motion, rider posture and surface dust never feed back into handling.
 
 The earlier BehaviourLab scene and Stage 1–3 assets remain available as regression infrastructure.
@@ -69,9 +78,9 @@ Build output must remain outside the repository.
 
 Verified Windows Development Build:
 
-`C:\Users\chris\Documents\DustbowlBuilds\PlayableParity\Dustbowl.exe`
+`C:\Users\chris\Documents\DustbowlBuilds\PlayableParityPlaytestFix1\Dustbowl.exe`
 
-Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity checks, all 27 EditMode tests and all 3 PlayMode tests. The IL2CPP player remained live through a 12-second smoke launch, initialized the National scene under Unity `6000.3.23f1` with D3D12, Input System and PhysX, and emitted no runtime exception in its launch log.
+Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity checks, all 30 EditMode tests and all 3 PlayMode tests. The correction-specific checks verify web-equivalent course winding, the entire closed course corridor against the broad desert mesh, all eight live minimap markers, opponent marker movement and Chase/Close/Overhead cycling. The IL2CPP player remained live during smoke launch, rendered the corrected National scene and minimap in a direct window capture under Unity `6000.3.23f1` with D3D12, Input System and PhysX, and emitted no runtime exception in its launch log.
 
 ## Known differences from the web game
 
@@ -79,7 +88,7 @@ Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity chec
 - The player retains the Stage 3 Unity controller's practical interpretation of the web constants. It is not claimed to have passed the feel gate merely because deterministic checks pass.
 - Unity opponents use a stable centreline/pace simulation rather than the web AI's near-player full controller, far-player analytical LOD, pairwise repulsion and off-track recovery. Their major-jump release is presentation-only at this milestone.
 - Landing remains the current short-contact/accepted/wipeout implementation. The future Clean/Sketchy/Ugly/Wipeout shared result is intentionally not smuggled into this redirected milestone.
-- The web's four-course event selector, title flow, pause/settings UI, minimap, generated engine audio and musical/chime hooks are not yet ported. This build opens directly into Dustbowl Flats.
+- The web's four-course event selector, title flow, pause/settings UI, generated engine audio and musical/chime hooks are not yet ported. This build opens directly into Dustbowl Flats; its functional minimap is now present.
 - Bikes, riders, vegetation, terrain materials and HUD are deliberately replaceable development art, not final production assets or animation.
 - There is no bike-to-bike collision authority. Positions come from race distance and riders may visually overlap.
 

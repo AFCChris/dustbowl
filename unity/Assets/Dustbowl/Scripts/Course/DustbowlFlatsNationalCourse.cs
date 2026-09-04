@@ -18,6 +18,11 @@ namespace Dustbowl.Course
         public const int Laps = 3;
         public const int RiderCount = 8;
 
+        // Three.js uses a right-handed world while Unity uses a left-handed world.
+        // Mirroring Z preserves the authored web course's clockwise race direction
+        // instead of reflecting it into an anti-clockwise Unity lap.
+        public const float WebToUnityZSign = -1f;
+
         private const float LayoutScaleX = 286f;
         private const float LayoutScaleZ = 238f;
         private const float Spacing = 2.2f;
@@ -66,7 +71,9 @@ namespace Dustbowl.Course
             {
                 checkpoints[index] = new Checkpoint
                 {
-                    position = new Vector2(Layout[index].x * LayoutScaleX, Layout[index].y * LayoutScaleZ)
+                    position = new Vector2(
+                        Layout[index].x * LayoutScaleX,
+                        UnityZFromWeb(Layout[index].y * LayoutScaleZ))
                 };
             }
 
@@ -109,7 +116,7 @@ namespace Dustbowl.Course
                         Sections[sectionIndex].elevation,
                         Sections[(sectionIndex + 1) % count].elevation,
                         SmoothStep01(t));
-                    point.height = DustbowlFlatsHeight.Sample(point.position.x, point.position.y) + elevation;
+                    point.height = SampleNaturalHeight(point.position.x, point.position.y) + elevation;
                 }
             }
 
@@ -286,6 +293,13 @@ namespace Dustbowl.Course
         }
 
         private static float SmoothStep01(float value) => value * value * (3f - 2f * value);
+
+        public static float UnityZFromWeb(float webZ) => webZ * WebToUnityZSign;
+
+        public static float WebZFromUnity(float unityZ) => unityZ * WebToUnityZSign;
+
+        public static float SampleNaturalHeight(float unityX, float unityZ)
+            => DustbowlFlatsHeight.Sample(unityX, WebZFromUnity(unityZ));
 
         private static SectionFeature Feature(string kind, float fraction, float length, float height, float wavelength = 0f)
             => new(kind, fraction, length, height, wavelength);

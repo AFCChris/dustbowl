@@ -47,13 +47,13 @@ namespace Dustbowl.Editor
             scene.name = "Dustbowl_National_Flats";
             var root = new GameObject("Dustbowl_National_DustbowlFlats");
 
-            Material sand = Material("NationalSand", new Color(.67f, .43f, .20f), .18f);
-            Material track = Material("NationalTrack", new Color(.23f, .105f, .045f), .10f);
-            Material trackShoulder = Material("NationalTrackShoulder", new Color(.47f, .27f, .115f), .12f);
+            Material sand = Material("NationalSand", Hex(0xE3BE86), 0f);
+            Material track = Material("NationalTrack", Hex(0x8A4520), 0f);
+            Material trackShoulder = Material("NationalTrackShoulder", Hex(0xB4783C), 0f);
             Material dark = Material("NationalBikeDark", new Color(.025f, .03f, .035f), .38f);
             Material chrome = Material("NationalBikeMetal", new Color(.36f, .39f, .41f), .72f);
             Material skin = Material("NationalRiderSkin", new Color(.62f, .35f, .20f), .15f);
-            Material dust = Material("NationalDust", new Color(.79f, .51f, .24f), 0f);
+            Material dust = Material("NationalDust", Hex(0xD99A52), 0f);
 
             var surfaceObject = new GameObject("Authoritative_DustbowlFlats_Surface");
             surfaceObject.transform.SetParent(root.transform, false);
@@ -65,7 +65,7 @@ namespace Dustbowl.Editor
 
             var desertObject = new GameObject("Dustbowl_Desert_Landform");
             desertObject.transform.SetParent(root.transform, false);
-            desertObject.AddComponent<MeshFilter>().sharedMesh = SaveMesh(BuildDesertMesh(), DesertMeshPath);
+            desertObject.AddComponent<MeshFilter>().sharedMesh = SaveMesh(BuildDesertMesh(surface), DesertMeshPath);
             desertObject.AddComponent<MeshRenderer>().sharedMaterial = sand;
 
             var racingLineObject = new GameObject("Packed_Dirt_Racing_Surface");
@@ -124,14 +124,15 @@ namespace Dustbowl.Editor
             CreateScenery(root.transform, surface);
 
             RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(.91f, .60f, .37f);
+            RenderSettings.fogColor = Hex(0xE8AC78);
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogStartDistance = 310f;
             RenderSettings.fogEndDistance = 1200f;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.55f, .69f, .86f);
-            RenderSettings.ambientEquatorColor = new Color(.72f, .46f, .35f);
-            RenderSettings.ambientGroundColor = new Color(.25f, .14f, .07f);
+            RenderSettings.ambientSkyColor = Hex(0x9DBBE8);
+            RenderSettings.ambientEquatorColor = Hex(0xC07A72);
+            RenderSettings.ambientGroundColor = Hex(0x7D5230);
+            RenderSettings.skybox = null;
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[]
@@ -300,14 +301,19 @@ namespace Dustbowl.Editor
             return definition;
         }
 
-        private static Mesh BuildDesertMesh()
+        private static Mesh BuildDesertMesh(CourseSurface surface)
         {
             const int resolution = 160;
             const float size = 900f;
+            const float renderOffset = .12f;
+            // The authoritative course strip reaches 32 m from centre. Removing
+            // desert quads whose centres are inside 28 m leaves a small overlap
+            // at the seam, but no coarse uncut triangle can bridge over the road.
+            const float exclusionHalfWidth = 28f;
             int width = resolution + 1;
             var vertices = new Vector3[width * width];
             var uv = new Vector2[vertices.Length];
-            var triangles = new int[resolution * resolution * 6];
+            var triangles = new List<int>(resolution * resolution * 6);
             for (int z = 0; z < width; z++)
             {
                 for (int x = 0; x < width; x++)
@@ -315,29 +321,37 @@ namespace Dustbowl.Editor
                     float worldX = Mathf.Lerp(-size * .5f, size * .5f, x / (float)resolution);
                     float worldZ = Mathf.Lerp(-size * .5f, size * .5f, z / (float)resolution);
                     int index = z * width + x;
-                    vertices[index] = new Vector3(worldX, DustbowlFlatsHeight.Sample(worldX, worldZ) - .12f, worldZ);
+                    Vector3 world = new(worldX, 0f, worldZ);
+                    vertices[index] = new Vector3(worldX, surface.SampleHeight(world) - renderOffset, worldZ);
                     uv[index] = new Vector2(x / (float)resolution, z / (float)resolution) * 18f;
                 }
             }
 
-            int triangle = 0;
             for (int z = 0; z < resolution; z++)
             {
                 for (int x = 0; x < resolution; x++)
                 {
+                    float centerX = Mathf.Lerp(-size * .5f, size * .5f, (x + .5f) / resolution);
+                    float centerZ = Mathf.Lerp(-size * .5f, size * .5f, (z + .5f) / resolution);
+                    CourseSample sample = surface.SampleCourse(new Vector3(centerX, 0f, centerZ));
+                    if (sample.isValid && sample.distanceFromCenter < exclusionHalfWidth)
+                    {
+                        continue;
+                    }
+
                     int current = z * width + x;
-                    triangles[triangle++] = current;
-                    triangles[triangle++] = current + width;
-                    triangles[triangle++] = current + 1;
-                    triangles[triangle++] = current + 1;
-                    triangles[triangle++] = current + width;
-                    triangles[triangle++] = current + width + 1;
+                    triangles.Add(current);
+                    triangles.Add(current + width);
+                    triangles.Add(current + 1);
+                    triangles.Add(current + 1);
+                    triangles.Add(current + width);
+                    triangles.Add(current + width + 1);
                 }
             }
 
             var mesh = new Mesh { name = "DustbowlFlats_NationalDesert", indexFormat = IndexFormat.UInt32 };
             mesh.vertices = vertices;
-            mesh.triangles = triangles;
+            mesh.triangles = triangles.ToArray();
             mesh.uv = uv;
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
@@ -491,7 +505,7 @@ namespace Dustbowl.Editor
             cameraObject.transform.SetParent(parent, false);
             UnityEngine.Camera camera = cameraObject.AddComponent<UnityEngine.Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(.11f, .23f, .39f);
+            camera.backgroundColor = Hex(0x1D3A63);
             camera.nearClipPlane = .2f;
             camera.farClipPlane = 1800f;
             camera.fieldOfView = 62f;
@@ -509,7 +523,7 @@ namespace Dustbowl.Editor
             sunObject.transform.rotation = Quaternion.Euler(54f, -138f, 0f);
             Light sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, .79f, .59f);
+            sun.color = Hex(0xFFD6A0);
             sun.intensity = 2.5f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = .72f;
@@ -567,9 +581,9 @@ namespace Dustbowl.Editor
 
         private static void CreateScenery(Transform parent, CourseSurface surface)
         {
-            Material rock = Material("NationalRock", new Color(.37f, .30f, .25f), .08f);
-            Material scrub = Material("NationalScrub", new Color(.30f, .34f, .12f), .03f);
-            Material trunk = Material("NationalScrubStem", new Color(.22f, .14f, .06f), .02f);
+            Material rock = Material("NationalRock", Hex(0x9A8A7C), 0f);
+            Material scrub = Material("NationalScrub", Hex(0x8B8A4E), 0f);
+            Material trunk = Material("NationalScrubStem", Hex(0x6D4A2C), 0f);
             var scenery = new GameObject("Desert_Scenery");
             scenery.transform.SetParent(parent, false);
             var random = new System.Random(1805);
@@ -651,6 +665,12 @@ namespace Dustbowl.Editor
             material.SetFloat("_Smoothness", metallic > .5f ? .62f : .18f);
             EditorUtility.SetDirty(material);
             return material;
+        }
+
+        private static Color Hex(uint rgb)
+        {
+            Color srgb = new Color32((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
+            return QualitySettings.activeColorSpace == ColorSpace.Linear ? srgb.linear : srgb;
         }
 
         private static Mesh SaveMesh(Mesh generated, string path)

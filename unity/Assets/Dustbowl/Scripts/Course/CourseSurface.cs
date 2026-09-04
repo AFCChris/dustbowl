@@ -42,7 +42,9 @@ namespace Dustbowl.Course
                     : RoundedCrestReference.BaseHeight;
             }
 
-            float natural = DustbowlFlatsHeight.Sample(worldPosition.x, worldPosition.z);
+            float natural = surfaceModel == CourseSurfaceModel.DustbowlFlatsNational
+                ? DustbowlFlatsNationalCourse.SampleNaturalHeight(worldPosition.x, worldPosition.z)
+                : DustbowlFlatsHeight.Sample(worldPosition.x, worldPosition.z);
             float offset = Mathf.Abs(course.signedLateralDistance);
             float influenceLimit = DustbowlFlatsReferenceSegment.TrackHalfWidth
                 + DustbowlFlatsReferenceSegment.BermWidth
