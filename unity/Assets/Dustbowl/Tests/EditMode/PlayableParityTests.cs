@@ -94,6 +94,28 @@ namespace Dustbowl.Tests
         }
 
         [Test]
+        public void PresentationFitsReferenceFramesAndUsesSoftRoostAndGradientSky()
+        {
+            Assert.That(NationalRaceHud.ReferenceLayoutFits(1280f, 720f), Is.True);
+            Assert.That(NationalRaceHud.ReferenceLayoutFits(1280f, 800f), Is.True);
+
+            var scene = EditorSceneManager.OpenScene(ScenePath);
+            GameObject[] roots = scene.GetRootGameObjects();
+            ParticleSystem[] particles = roots
+                .SelectMany(root => root.GetComponentsInChildren<ParticleSystem>(true)).ToArray();
+            Assert.That(particles.Length, Is.EqualTo(8));
+            Assert.That(particles.All(value =>
+            {
+                Material material = value.GetComponent<ParticleSystemRenderer>().sharedMaterial;
+                return material != null
+                    && material.shader.name == "Universal Render Pipeline/Particles/Unlit"
+                    && material.mainTexture != null;
+            }), Is.True);
+            Assert.That(RenderSettings.skybox, Is.Not.Null);
+            Assert.That(RenderSettings.skybox.shader.name, Is.EqualTo("Dustbowl/SkyGradient"));
+        }
+
+        [Test]
         public void LapGateRejectsStartLineFarmingAndFinishesAfterThreeRealLaps()
         {
             const float length = 1000f;

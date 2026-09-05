@@ -30,6 +30,7 @@ namespace Dustbowl.Bike
         private int takeoffCount;
         private int landingCount;
         private bool raceControlEnabled = true;
+        private bool autoThrottleEnabled = true;
 
         public ArcadeBikeTuning Tuning => tuning;
         public CourseSurface CurrentSurface => currentSurface;
@@ -38,6 +39,7 @@ namespace Dustbowl.Bike
         public float LastRecoveryDuration => lastRecoveryDuration;
         public int TakeoffCount => takeoffCount;
         public int LandingCount => landingCount;
+        public bool AutoThrottleEnabled => autoThrottleEnabled;
 
         public void Configure(
             ArcadeBikeTuning bikeTuning,
@@ -49,6 +51,7 @@ namespace Dustbowl.Bike
             inputReader = reader;
             telemetry = recorder;
             cameraModes = modes;
+            autoThrottleEnabled = bikeTuning == null || bikeTuning.AutoThrottle;
         }
 
         public void SetSurfaceAndSpawn(CourseSurface surface, float along)
@@ -68,6 +71,30 @@ namespace Dustbowl.Bike
         {
             raceControlEnabled = enabled;
             state.controlsEnabled = enabled && state.motionState != BikeMotionState.Wipeout;
+        }
+
+        public void SetAutoThrottle(bool enabled)
+        {
+            autoThrottleEnabled = enabled;
+        }
+
+        public bool ApplyPlayableAreaGuard(
+            float guardRadius,
+            float targetRadius,
+            float velocityRetention)
+        {
+            if (!initialized || !ArcadeBikeRules.ApplyRadialGuard(
+                    ref state.position,
+                    ref state.velocity,
+                    guardRadius,
+                    targetRadius,
+                    velocityRetention))
+            {
+                return false;
+            }
+
+            ApplyTransform();
+            return true;
         }
 
         public void InitializeAtSpawn()
@@ -240,9 +267,10 @@ namespace Dustbowl.Bike
             float forwardSpeed = Vector3.Dot(state.velocity, slopeForward);
             float speed = state.velocity.magnitude;
             float brake = Mathf.Clamp01(input.brake);
-            float throttle = tuning.AutoThrottle
-                ? (brake > 0f ? 0f : 1f)
-                : Mathf.Clamp01(input.throttle);
+            float throttle = ArcadeBikeRules.ResolveThrottle(
+                autoThrottleEnabled,
+                brake,
+                input.throttle);
 
             if (throttle > 0f)
             {

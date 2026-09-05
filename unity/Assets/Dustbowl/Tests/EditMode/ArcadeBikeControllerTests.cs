@@ -46,6 +46,30 @@ namespace Dustbowl.Tests
         }
 
         [Test]
+        public void AutoAndManualThrottlePreserveWebInputIntent()
+        {
+            Assert.That(ArcadeBikeRules.ResolveThrottle(true, 0f, 0f), Is.EqualTo(1f));
+            Assert.That(ArcadeBikeRules.ResolveThrottle(true, .01f, 0f), Is.Zero);
+            Assert.That(ArcadeBikeRules.ResolveThrottle(false, 0f, .65f), Is.EqualTo(.65f));
+            Assert.That(ArcadeBikeRules.ResolveThrottle(false, 0f, 0f), Is.Zero);
+        }
+
+        [Test]
+        public void FarWorldGuardMatchesWebClampAndVelocityRetention()
+        {
+            Vector3 position = new(500f, 12f, 0f);
+            Vector3 velocity = new(20f, -3f, 10f);
+            Assert.That(ArcadeBikeRules.ApplyRadialGuard(ref position, ref velocity, 430f, 428f, .3f), Is.True);
+            Assert.That(new Vector2(position.x, position.z).magnitude, Is.EqualTo(428f).Within(.001f));
+            Assert.That(position.y, Is.EqualTo(12f));
+            Assert.That(velocity.x, Is.EqualTo(6f).Within(.0001f));
+            Assert.That(velocity.y, Is.EqualTo(-.9f).Within(.0001f));
+            Assert.That(velocity.z, Is.EqualTo(3f).Within(.0001f));
+
+            Assert.That(ArcadeBikeRules.ApplyRadialGuard(ref position, ref velocity, 430f, 428f, .3f), Is.False);
+        }
+
+        [Test]
         public void ClimbRateUsesClampedExponentialHistory()
         {
             ArcadeBikeTuning tuning = LoadTuning();

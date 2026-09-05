@@ -32,6 +32,37 @@ namespace Dustbowl.Bike
             return (hasThrottle ? tuning.ThrottleDrag : tuning.CoastDrag) + loose;
         }
 
+        public static float ResolveThrottle(
+            bool autoThrottle,
+            float brakeInput,
+            float manualThrottleInput)
+        {
+            return autoThrottle
+                ? (Mathf.Clamp01(brakeInput) > 0f ? 0f : 1f)
+                : Mathf.Clamp01(manualThrottleInput);
+        }
+
+        public static bool ApplyRadialGuard(
+            ref Vector3 position,
+            ref Vector3 velocity,
+            float guardRadius,
+            float targetRadius,
+            float velocityRetention)
+        {
+            Vector2 planar = new(position.x, position.z);
+            float radius = planar.magnitude;
+            if (radius <= guardRadius || radius <= 0.0001f)
+            {
+                return false;
+            }
+
+            float scale = Mathf.Min(targetRadius, guardRadius) / radius;
+            position.x *= scale;
+            position.z *= scale;
+            velocity *= Mathf.Clamp01(velocityRetention);
+            return true;
+        }
+
         public static float ExponentialResponse(float rate, float deltaTime)
         {
             return 1f - Mathf.Exp(-rate * deltaTime);

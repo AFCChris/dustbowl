@@ -64,8 +64,10 @@ namespace Dustbowl.Race
 
             if (dust != null)
             {
+                float dustAmount = grounded ? Mathf.Clamp01((speed - 2f) / 24f) : 0f;
                 ParticleSystem.EmissionModule emission = dust.emission;
-                emission.rateOverTime = grounded ? Mathf.Clamp(speed * 1.7f, 0f, 55f) : 0f;
+                emission.rateOverTime = dustAmount * 38f;
+                emission.rateOverDistance = dustAmount * 1.25f;
             }
         }
     }

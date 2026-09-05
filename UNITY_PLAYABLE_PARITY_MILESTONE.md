@@ -19,6 +19,20 @@ The first Windows playtest identified four parity defects. This corrective pass 
 - **Basic palette:** the placeholder scene now uses the actual Dustbowl Flats web palette for pale sand (`#E3BE86`), ochre shoulders (`#B4783C`), packed red dirt (`#8A4520`), dusk-blue sky (`#1D3A63`), warm haze (`#E8AC78`), sunlight, rocks and scrub. Terrain materials are non-metallic. This is a readability correction, not final production art.
 - **Minimap:** `NationalRaceHud` now draws a lightweight course outline in web-map orientation, a start marker, a heading-aware player marker and seven color-coded live opponent markers. It reads the authoritative `CourseDefinition` and rider transforms rather than maintaining separate race progress.
 
+## Presentation parity and basic game loop pass
+
+The current pass uses the preserved web build as a presentation and basic-loop reference without changing its files or treating its prototype rendering as a production ceiling.
+
+- **Setup, HUD and results:** the National now opens on a bold, centred Dustbowl setup plate rather than dropping directly into the countdown. It presents the event, controls, camera and throttle choice before the race. The in-race HUD uses a compact unclipped hierarchy for lap time, position, lap, best time, speed and camera. The results plate separates finish position, race/best times and the eight-rider classification, with clear race-again and quit actions. Layout guards cover `1280x720` Windows and `1280x800` Steam Deck reference frames.
+- **Typography and colour:** display typography uses an installed condensed Windows face with Consolas for smaller data and controls. The palette follows the web build's amber, sand, paper and near-black presentation rather than default Unity UI styling.
+- **Minimap:** the map is framed against the complete `340 m` playable circle, preserving the full web-space course silhouette at a glance. It includes the start marker, a red heading-aware player marker and seven outlined opponent colours; all markers are driven by live transforms.
+- **Atmosphere:** a lightweight URP sky shader recreates the web build's deep-blue-to-warm-haze gradient. Fog, tri-light ambient colour, sunlight and material response are compensated for Unity's lighting so sand, ochre shoulder and packed dirt remain distinct without the previous fluorescent shifts.
+- **Bikes and riders:** the eight procedural placeholders now have readable tyres, rims, hubs, spokes, twin forks, frame, swingarm, engine, tank, seat, side panels, number plate, fenders, handlebar and exhaust. Riders have colour-separated jersey/chest, hips, helmet, visor, peak, face, arms, legs and boots. These remain replaceable development assets and do not affect controller authority.
+- **Dust/roost:** every rider uses the same soft radial particle texture and transparent URP particle material. Speed shapes a mixed time-and-distance emission rate; particles expand, drift, fade and receive mild noise, while `BikePresentation` remains visual-only.
+- **Throttle choice:** Auto Throttle is the default, persists through `PlayerPrefs`, drives at full throttle unless braking, and still respects countdown/results control gating. Manual Throttle uses the existing `W`/Up or right-trigger input. Toggle with `T` or gamepad X before or during the race.
+- **Quit:** Escape exits from setup, countdown, racing or results; setup and results also expose a clickable quit action.
+- **Playable-area boundary:** the existing web-derived heightfield already contains the original rising perimeter from radius `350 m` through `530 m`, so its humorous emergent catapult/rim response is retained. The player now also matches the web far guard: beyond `430 m`, X/Z are returned to radius `428 m` and velocity is retained at `30%`. This prevents indefinite travel without changing normal-course handling or controller tuning.
+
 ## Architecture
 
 - `DustbowlFlatsNationalCourse` deterministically rebuilds the web course's nine normalized layout points, Hermite centreline, seeded land height, nine-pass grade smoothing, twelve-pass bank smoothing, authored start rotation, section speed hints and all nine feature zones.
@@ -60,10 +74,13 @@ The earlier BehaviourLab scene and Stage 1–3 assets remain available as regres
 | Air whip/yaw | `Q` / `E` | right stick horizontal |
 | Next / previous camera | `C` / `V` | right / left shoulder |
 | Reset | Backspace | Y / north button |
+| Toggle Auto / Manual throttle | `T` | X / west button |
+| Start race | Enter or Space | A / south button |
+| Quit to desktop | Escape | setup/results button |
 | Restart after results | Enter | A / south button |
 | Toggle telemetry capture | F9 | Start |
 
-Auto-throttle is enabled by the current reference tuning and releases only after GO. Braking suppresses auto-throttle.
+Auto-throttle is the default and releases only after GO. Braking suppresses it. Manual mode uses the existing throttle action and the setting persists between runs.
 
 ## Verification and build
 
@@ -78,9 +95,9 @@ Build output must remain outside the repository.
 
 Verified Windows Development Build:
 
-`C:\Users\chris\Documents\DustbowlBuilds\PlayableParityPlaytestFix1\Dustbowl.exe`
+`C:\Users\chris\Documents\DustbowlBuilds\PresentationParityBasicLoop\Dustbowl.exe`
 
-Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity checks, all 30 EditMode tests and all 3 PlayMode tests. The correction-specific checks verify web-equivalent course winding, the entire closed course corridor against the broad desert mesh, all eight live minimap markers, opponent marker movement and Chase/Close/Overhead cycling. The IL2CPP player remained live during smoke launch, rendered the corrected National scene and minimap in a direct window capture under Unity `6000.3.23f1` with D3D12, Input System and PhysX, and emitted no runtime exception in its launch log.
+Final verification on 2026-09-05 passed all Stage 1–3 and playable-parity checks, all 33 EditMode tests and all 3 PlayMode tests. The pass-specific checks cover both throttle modes, the web-equivalent far guard, reference UI framing, the gradient sky, eight soft-roost systems with a real alpha texture, eight live minimap markers, opponent marker movement, complete results and Chase/Close/Overhead cycling. The IL2CPP Development Player opened the setup presentation, accepted the race start and remained responsive under Unity `6000.3.23f1` with D3D11, Input System and PhysX. Its smoke log contained no runtime exception, missing-font warning or shader error.
 
 ## Known differences from the web game
 
@@ -88,15 +105,15 @@ Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity chec
 - The player retains the Stage 3 Unity controller's practical interpretation of the web constants. It is not claimed to have passed the feel gate merely because deterministic checks pass.
 - Unity opponents use a stable centreline/pace simulation rather than the web AI's near-player full controller, far-player analytical LOD, pairwise repulsion and off-track recovery. Their major-jump release is presentation-only at this milestone.
 - Landing remains the current short-contact/accepted/wipeout implementation. The future Clean/Sketchy/Ugly/Wipeout shared result is intentionally not smuggled into this redirected milestone.
-- The web's four-course event selector, title flow, pause/settings UI, generated engine audio and musical/chime hooks are not yet ported. This build opens directly into Dustbowl Flats; its functional minimap is now present.
-- Bikes, riders, vegetation, terrain materials and HUD are deliberately replaceable development art, not final production assets or animation.
+- The web's four-course event selector, pause/settings UI, generated engine audio and musical/chime hooks are not yet ported. This build has a dedicated Dustbowl Flats setup and complete basic race loop, not a multi-event front end.
+- Bikes, riders, vegetation, terrain materials, particle roost and HUD are deliberately replaceable development art, not final production assets or animation.
 - There is no bike-to-bike collision authority. Positions come from race distance and riders may visually overlap.
 
 ## Remaining limitations
 
 - User play review is required for steering sign/authority, speed perception, jump readability, air correction, landing forgiveness, camera comfort and overall fun. Tests cannot approve these.
 - AI is race-functional but not production racing AI; overtaking, avoidance, collisions, recovery and jump physics need a later reviewed pass.
-- The player has no pause menu, settings screen, audio mix, controller glyph switching or accessibility options yet.
+- The player has no pause menu, settings screen, audio mix, controller glyph switching or accessibility options yet. Escape currently quits directly, matching the requested basic-loop scope.
 - Environment dressing is intentionally sparse and has no LOD or measured Steam Deck/mobile budget.
 - Crash presentation is the temporary deterministic tumble, not the final animation/ragdoll solution.
 - Only Dustbowl Flats is included in this Unity milestone.

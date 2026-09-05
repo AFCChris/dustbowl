@@ -28,6 +28,8 @@ namespace Dustbowl.Editor
         private const string SurfaceMeshPath = Root + "/Courses/DustbowlFlats_NationalSurface.asset";
         private const string DesertMeshPath = Root + "/Courses/DustbowlFlats_NationalDesert.asset";
         private const string RacingLineMeshPath = Root + "/Courses/DustbowlFlats_NationalRacingLine.asset";
+        private const string SoftDustTexturePath = Root + "/Materials/NationalDustSoft.asset";
+        private const string SkyMaterialPath = Root + "/Materials/NationalSkyGradient.mat";
         private const string TuningPath = Root + "/Settings/WebReferenceArcadeBikeTuning.asset";
         private const string InputPath = Root + "/Settings/DustbowlInputActions.inputactions";
         private const string BehaviourLabPath = Root + "/Scenes/Dustbowl_BehaviourLab.unity";
@@ -47,13 +49,16 @@ namespace Dustbowl.Editor
             scene.name = "Dustbowl_National_Flats";
             var root = new GameObject("Dustbowl_National_DustbowlFlats");
 
-            Material sand = Material("NationalSand", Hex(0xE3BE86), 0f);
-            Material track = Material("NationalTrack", Hex(0x8A4520), 0f);
-            Material trackShoulder = Material("NationalTrackShoulder", Hex(0xB4783C), 0f);
-            Material dark = Material("NationalBikeDark", new Color(.025f, .03f, .035f), .38f);
-            Material chrome = Material("NationalBikeMetal", new Color(.36f, .39f, .41f), .72f);
-            Material skin = Material("NationalRiderSkin", new Color(.62f, .35f, .20f), .15f);
-            Material dust = Material("NationalDust", Hex(0xD99A52), 0f);
+            // Unity's Lambert/PBR response is brighter than the web vertex colours.
+            // These are presentation-compensated values from the same Dustbowl Flats palette.
+            Material sand = Material("NationalSand", Hex(0xB58F60), 0f);
+            Material track = Material("NationalTrack", Hex(0x63351F), 0f);
+            Material trackShoulder = Material("NationalTrackShoulder", Hex(0x85512E), 0f);
+            Material dark = Material("NationalBikeDark", Hex(0x1B1D22), .12f);
+            Material chrome = Material("NationalBikeMetal", Hex(0x9BA1A8), .58f);
+            Material white = Material("NationalBikeWhite", Hex(0xEDE7DA), 0f);
+            Material skin = Material("NationalRiderSkin", Hex(0xB97550), 0f);
+            Material dust = DustMaterial();
 
             var surfaceObject = new GameObject("Authoritative_DustbowlFlats_Surface");
             surfaceObject.transform.SetParent(root.transform, false);
@@ -82,7 +87,7 @@ namespace Dustbowl.Editor
             CameraModeController cameraModes = infrastructure.AddComponent<CameraModeController>();
 
             ArcadeBikeTuning tuning = AssetDatabase.LoadAssetAtPath<ArcadeBikeTuning>(TuningPath);
-            GameObject playerObject = CreateBike(root.transform, "Player_Motocross_Bike", RiderColors[0], dark, chrome, skin, dust);
+            GameObject playerObject = CreateBike(root.transform, "Player_Motocross_Bike", RiderColors[0], dark, chrome, white, skin, dust);
             ArcadeBikeController player = playerObject.AddComponent<ArcadeBikeController>();
             player.Configure(tuning, input, telemetry, cameraModes);
             CourseSpawnHint playerSpawn = definition.SpawnHints[0];
@@ -99,6 +104,7 @@ namespace Dustbowl.Editor
                     RiderColors[index + 1],
                     dark,
                     chrome,
+                    white,
                     skin,
                     dust);
                 ai[index] = aiObject.AddComponent<NationalAIRider>();
@@ -124,15 +130,17 @@ namespace Dustbowl.Editor
             CreateScenery(root.transform, surface);
 
             RenderSettings.fog = true;
-            RenderSettings.fogColor = Hex(0xE8AC78);
+            RenderSettings.fogColor = Hex(0xC18A61);
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 310f;
-            RenderSettings.fogEndDistance = 1200f;
+            RenderSettings.fogStartDistance = 280f;
+            RenderSettings.fogEndDistance = 1180f;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = Hex(0x9DBBE8);
-            RenderSettings.ambientEquatorColor = Hex(0xC07A72);
-            RenderSettings.ambientGroundColor = Hex(0x7D5230);
-            RenderSettings.skybox = null;
+            RenderSettings.ambientSkyColor = Hex(0x7086A7);
+            RenderSettings.ambientEquatorColor = Hex(0x8B5B50);
+            RenderSettings.ambientGroundColor = Hex(0x493525);
+            RenderSettings.ambientIntensity = .72f;
+            RenderSettings.reflectionIntensity = .28f;
+            RenderSettings.skybox = SkyMaterial();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[]
@@ -199,6 +207,32 @@ namespace Dustbowl.Editor
             if (!EditorBuildSettings.scenes.Any(value => value.enabled && value.path == ScenePath))
             {
                 throw new InvalidOperationException("The National scene is not enabled in build settings.");
+            }
+
+            NationalRaceHud hud = roots.SelectMany(value => value.GetComponentsInChildren<NationalRaceHud>(true)).Single();
+            if (!NationalRaceHud.ReferenceLayoutFits(1280f, 720f)
+                || !NationalRaceHud.ReferenceLayoutFits(1280f, 800f))
+            {
+                throw new InvalidOperationException("The National HUD does not fit the Windows or Steam Deck reference frames.");
+            }
+
+            BikePresentation[] presentations = roots
+                .SelectMany(value => value.GetComponentsInChildren<BikePresentation>(true)).ToArray();
+            ParticleSystem[] dustTrails = roots
+                .SelectMany(value => value.GetComponentsInChildren<ParticleSystem>(true)).ToArray();
+            if (hud.MinimapTrackedRiderCount != 8 || hud.MinimapCoursePointCount != 685
+                || presentations.Length != 8 || dustTrails.Length != 8
+                || dustTrails.Any(value => value.GetComponent<ParticleSystemRenderer>().sharedMaterial == null
+                    || value.GetComponent<ParticleSystemRenderer>().sharedMaterial.mainTexture == null))
+            {
+                throw new InvalidOperationException("The National HUD, minimap or eight-rider soft-roost presentation is incomplete.");
+            }
+
+            if (RenderSettings.skybox == null
+                || RenderSettings.skybox.shader == null
+                || RenderSettings.skybox.shader.name != "Dustbowl/SkyGradient")
+            {
+                throw new InvalidOperationException("The Dustbowl gradient sky is not configured.");
             }
 
             Debug.Log(
@@ -415,48 +449,116 @@ namespace Dustbowl.Editor
             Color color,
             Material dark,
             Material chrome,
+            Material white,
             Material skin,
             Material dustMaterial)
         {
             var bike = new GameObject(name);
             bike.transform.SetParent(parent, false);
-            Material body = Material(name + "_Paint", color, .32f);
-            Transform rear = Primitive(bike.transform, PrimitiveType.Cylinder, "RearWheel",
-                new Vector3(0f, -.12f, -.78f), new Vector3(.46f, .13f, .46f), Quaternion.Euler(0f, 0f, 90f), dark).transform;
-            Transform front = Primitive(bike.transform, PrimitiveType.Cylinder, "FrontWheel",
-                new Vector3(0f, -.12f, .82f), new Vector3(.46f, .13f, .46f), Quaternion.Euler(0f, 0f, 90f), dark).transform;
-            Primitive(rear, PrimitiveType.Cylinder, "RearHub", Vector3.zero, new Vector3(.38f, 1.05f, .38f), Quaternion.identity, chrome);
-            Primitive(front, PrimitiveType.Cylinder, "FrontHub", Vector3.zero, new Vector3(.38f, 1.05f, .38f), Quaternion.identity, chrome);
-            Tube(bike.transform, "FrameTop", new Vector3(0f, .14f, -.52f), new Vector3(0f, .37f, .45f), .075f, body);
-            Tube(bike.transform, "FrameLower", new Vector3(0f, -.01f, -.53f), new Vector3(0f, .26f, .43f), .065f, chrome);
-            Tube(bike.transform, "RearSwingarm", new Vector3(0f, -.08f, -.76f), new Vector3(0f, .12f, .22f), .055f, chrome);
-            Tube(bike.transform, "FrontFork", new Vector3(0f, -.10f, .79f), new Vector3(0f, .52f, .58f), .055f, chrome);
+            Material body = Material(name + "_Paint", color, .08f);
+            Material jersey = Material(name + "_Jersey", Color.Lerp(color, Color.white, .18f), 0f);
+            Transform rear = CreateWheel(bike.transform, "RearWheel", new Vector3(0f, -.12f, -.78f), dark, chrome);
+            Transform front = CreateWheel(bike.transform, "FrontWheel", new Vector3(0f, -.12f, .82f), dark, chrome);
+
+            Tube(bike.transform, "FrameTop", new Vector3(0f, .12f, -.53f), new Vector3(0f, .37f, .42f), .065f, body);
+            Tube(bike.transform, "FrameLower", new Vector3(0f, -.01f, -.50f), new Vector3(0f, .24f, .39f), .055f, chrome);
+            Tube(bike.transform, "RearSwingarm", new Vector3(0f, -.08f, -.75f), new Vector3(0f, .10f, .18f), .05f, chrome);
+            Tube(bike.transform, "FrontForkLeft", new Vector3(-.075f, -.10f, .79f), new Vector3(-.075f, .53f, .57f), .045f, chrome);
+            Tube(bike.transform, "FrontForkRight", new Vector3(.075f, -.10f, .79f), new Vector3(.075f, .53f, .57f), .045f, chrome);
+            Primitive(bike.transform, PrimitiveType.Cube, "Engine", new Vector3(0f, .12f, -.05f),
+                new Vector3(.34f, .31f, .34f), Quaternion.Euler(-4f, 0f, 0f), dark);
             Primitive(bike.transform, PrimitiveType.Sphere, "FuelTank", new Vector3(0f, .42f, .10f),
-                new Vector3(.30f, .25f, .46f), Quaternion.Euler(-8f, 0f, 0f), body);
-            Primitive(bike.transform, PrimitiveType.Cube, "Seat", new Vector3(0f, .43f, -.43f),
-                new Vector3(.28f, .11f, .55f), Quaternion.Euler(4f, 0f, 0f), dark);
-            Primitive(bike.transform, PrimitiveType.Cube, "FrontNumberPlate", new Vector3(0f, .56f, .62f),
-                new Vector3(.34f, .38f, .07f), Quaternion.Euler(-12f, 0f, 0f), body);
-            Tube(bike.transform, "Handlebar", new Vector3(-.34f, .66f, .54f), new Vector3(.34f, .66f, .54f), .035f, chrome);
+                new Vector3(.31f, .24f, .45f), Quaternion.Euler(-8f, 0f, 0f), body);
+            Primitive(bike.transform, PrimitiveType.Cube, "Seat", new Vector3(0f, .44f, -.42f),
+                new Vector3(.29f, .10f, .58f), Quaternion.Euler(4f, 0f, 0f), dark);
+            Primitive(bike.transform, PrimitiveType.Cube, "LeftSidePanel", new Vector3(-.20f, .31f, -.25f),
+                new Vector3(.055f, .28f, .44f), Quaternion.Euler(2f, 0f, -8f), body);
+            Primitive(bike.transform, PrimitiveType.Cube, "RightSidePanel", new Vector3(.20f, .31f, -.25f),
+                new Vector3(.055f, .28f, .44f), Quaternion.Euler(2f, 0f, 8f), body);
+            Primitive(bike.transform, PrimitiveType.Cube, "FrontNumberPlate", new Vector3(0f, .58f, .63f),
+                new Vector3(.35f, .36f, .065f), Quaternion.Euler(-12f, 0f, 0f), white);
+            Primitive(bike.transform, PrimitiveType.Cube, "FrontFender", new Vector3(0f, .29f, .76f),
+                new Vector3(.30f, .055f, .62f), Quaternion.Euler(-7f, 0f, 0f), body);
+            Primitive(bike.transform, PrimitiveType.Cube, "RearFender", new Vector3(0f, .43f, -.72f),
+                new Vector3(.30f, .055f, .56f), Quaternion.Euler(10f, 0f, 0f), body);
+            Tube(bike.transform, "Handlebar", new Vector3(-.36f, .68f, .55f), new Vector3(.36f, .68f, .55f), .03f, chrome);
+            Tube(bike.transform, "Exhaust", new Vector3(.18f, .16f, -.10f), new Vector3(.22f, .35f, -.67f), .045f, chrome);
 
             var rider = new GameObject("Rider");
             rider.transform.SetParent(bike.transform, false);
             rider.transform.localPosition = new Vector3(0f, .48f, -.10f);
-            Primitive(rider.transform, PrimitiveType.Sphere, "Torso", new Vector3(0f, .34f, .04f),
-                new Vector3(.33f, .46f, .24f), Quaternion.Euler(-16f, 0f, 0f), body);
+            Primitive(rider.transform, PrimitiveType.Capsule, "Torso", new Vector3(0f, .35f, .06f),
+                new Vector3(.31f, .34f, .22f), Quaternion.Euler(22f, 0f, 0f), jersey);
+            Primitive(rider.transform, PrimitiveType.Cube, "ChestPanel", new Vector3(0f, .43f, .24f),
+                new Vector3(.30f, .28f, .05f), Quaternion.Euler(-18f, 0f, 0f), white);
+            Primitive(rider.transform, PrimitiveType.Cube, "Hips", new Vector3(0f, .08f, -.10f),
+                new Vector3(.30f, .18f, .24f), Quaternion.Euler(5f, 0f, 0f), dark);
             Primitive(rider.transform, PrimitiveType.Sphere, "Helmet", new Vector3(0f, .82f, .20f),
-                new Vector3(.23f, .25f, .24f), Quaternion.identity, body);
-            Primitive(rider.transform, PrimitiveType.Sphere, "Face", new Vector3(0f, .82f, .41f),
-                new Vector3(.14f, .12f, .08f), Quaternion.identity, skin);
-            Tube(rider.transform, "LeftArm", new Vector3(-.18f, .52f, .10f), new Vector3(-.28f, .20f, .58f), .055f, body);
-            Tube(rider.transform, "RightArm", new Vector3(.18f, .52f, .10f), new Vector3(.28f, .20f, .58f), .055f, body);
-            Tube(rider.transform, "LeftLeg", new Vector3(-.15f, .13f, -.09f), new Vector3(-.18f, -.27f, -.38f), .075f, body);
-            Tube(rider.transform, "RightLeg", new Vector3(.15f, .13f, -.09f), new Vector3(.18f, -.27f, -.38f), .075f, body);
+                new Vector3(.24f, .26f, .25f), Quaternion.identity, jersey);
+            Primitive(rider.transform, PrimitiveType.Cube, "HelmetVisor", new Vector3(0f, .85f, .43f),
+                new Vector3(.24f, .08f, .09f), Quaternion.Euler(-8f, 0f, 0f), dark);
+            Primitive(rider.transform, PrimitiveType.Cube, "HelmetPeak", new Vector3(0f, .99f, .35f),
+                new Vector3(.26f, .035f, .20f), Quaternion.Euler(-10f, 0f, 0f), white);
+            Primitive(rider.transform, PrimitiveType.Sphere, "Face", new Vector3(0f, .78f, .415f),
+                new Vector3(.13f, .10f, .07f), Quaternion.identity, skin);
+            CapsuleLimb(rider.transform, "LeftArm", new Vector3(-.18f, .55f, .10f), new Vector3(-.29f, .20f, .57f), .065f, jersey);
+            CapsuleLimb(rider.transform, "RightArm", new Vector3(.18f, .55f, .10f), new Vector3(.29f, .20f, .57f), .065f, jersey);
+            CapsuleLimb(rider.transform, "LeftLeg", new Vector3(-.14f, .12f, -.10f), new Vector3(-.20f, -.26f, -.38f), .085f, dark);
+            CapsuleLimb(rider.transform, "RightLeg", new Vector3(.14f, .12f, -.10f), new Vector3(.20f, -.26f, -.38f), .085f, dark);
+            Primitive(rider.transform, PrimitiveType.Cube, "LeftBoot", new Vector3(-.20f, -.30f, -.31f),
+                new Vector3(.13f, .13f, .29f), Quaternion.Euler(-12f, 0f, 0f), dark);
+            Primitive(rider.transform, PrimitiveType.Cube, "RightBoot", new Vector3(.20f, -.30f, -.31f),
+                new Vector3(.13f, .13f, .29f), Quaternion.Euler(-12f, 0f, 0f), dark);
 
             ParticleSystem particles = CreateDust(bike.transform, dustMaterial);
             BikePresentation presentation = bike.AddComponent<BikePresentation>();
             presentation.Configure(null, null, front, rear, rider.transform, particles);
             return bike;
+        }
+
+        private static Transform CreateWheel(
+            Transform parent,
+            string name,
+            Vector3 position,
+            Material tyre,
+            Material metal)
+        {
+            GameObject wheel = Primitive(
+                parent,
+                PrimitiveType.Cylinder,
+                name,
+                position,
+                new Vector3(.46f, .12f, .46f),
+                Quaternion.Euler(0f, 0f, 90f),
+                tyre);
+            Primitive(wheel.transform, PrimitiveType.Cylinder, "Rim",
+                Vector3.zero, new Vector3(.31f, 1.08f, .31f), Quaternion.identity, metal);
+            Primitive(wheel.transform, PrimitiveType.Cylinder, "Hub",
+                Vector3.zero, new Vector3(.12f, 1.16f, .12f), Quaternion.identity, tyre);
+            Primitive(wheel.transform, PrimitiveType.Cube, "SpokeVertical",
+                Vector3.zero, new Vector3(.055f, .035f, .68f), Quaternion.identity, metal);
+            Primitive(wheel.transform, PrimitiveType.Cube, "SpokeHorizontal",
+                Vector3.zero, new Vector3(.68f, .035f, .055f), Quaternion.identity, metal);
+            return wheel.transform;
+        }
+
+        private static GameObject CapsuleLimb(
+            Transform parent,
+            string name,
+            Vector3 start,
+            Vector3 end,
+            float radius,
+            Material material)
+        {
+            Vector3 delta = end - start;
+            return Primitive(
+                parent,
+                PrimitiveType.Capsule,
+                name,
+                (start + end) * .5f,
+                new Vector3(radius * 2f, delta.magnitude * .5f, radius * 2f),
+                Quaternion.FromToRotation(Vector3.up, delta.normalized),
+                material);
         }
 
         private static void ConfigurePresentation(GameObject bike, ArcadeBikeController player, NationalAIRider ai)
@@ -473,28 +575,73 @@ namespace Dustbowl.Editor
 
         private static ParticleSystem CreateDust(Transform parent, Material material)
         {
-            var dust = new GameObject("DustTrail");
+            var dust = new GameObject("Soft_Roost_Trail");
             dust.transform.SetParent(parent, false);
-            dust.transform.localPosition = new Vector3(0f, -.32f, -.86f);
+            dust.transform.localPosition = new Vector3(0f, -.27f, -.83f);
             ParticleSystem particles = dust.AddComponent<ParticleSystem>();
             ParticleSystem.MainModule main = particles.main;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(.35f, .8f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(.8f, 2.8f);
-            main.startSize = new ParticleSystem.MinMaxCurve(.18f, .58f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(.55f, 1.25f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.2f, 3.8f);
+            main.startSize = new ParticleSystem.MinMaxCurve(.42f, 1.15f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(-.55f, .55f);
             main.startColor = new ParticleSystem.MinMaxGradient(
-                new Color(.67f, .39f, .17f, .65f), new Color(.92f, .70f, .40f, .3f));
+                new Color(.67f, .48f, .29f, .34f), new Color(.91f, .76f, .55f, .18f));
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 220;
+            main.maxParticles = 260;
+            main.gravityModifier = -.035f;
             ParticleSystem.EmissionModule emission = particles.emission;
             emission.rateOverTime = 0f;
+            emission.rateOverDistance = 0f;
             ParticleSystem.ShapeModule shape = particles.shape;
             shape.shapeType = ParticleSystemShapeType.Cone;
-            shape.angle = 26f;
-            shape.radius = .14f;
-            dust.transform.localRotation = Quaternion.Euler(-20f, 180f, 0f);
+            shape.angle = 21f;
+            shape.radius = .11f;
+            shape.length = .42f;
+            dust.transform.localRotation = Quaternion.Euler(-28f, 180f, 0f);
+
+            ParticleSystem.VelocityOverLifetimeModule velocity = particles.velocityOverLifetime;
+            velocity.enabled = true;
+            velocity.space = ParticleSystemSimulationSpace.Local;
+            velocity.x = new ParticleSystem.MinMaxCurve(-.55f, .55f);
+            velocity.y = new ParticleSystem.MinMaxCurve(.35f, 1.1f);
+            velocity.z = new ParticleSystem.MinMaxCurve(-.45f, .25f);
+
+            ParticleSystem.NoiseModule noise = particles.noise;
+            noise.enabled = true;
+            noise.strength = new ParticleSystem.MinMaxCurve(.25f, .70f);
+            noise.frequency = .32f;
+            noise.scrollSpeed = .18f;
+            noise.damping = true;
+
+            ParticleSystem.SizeOverLifetimeModule size = particles.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, .45f),
+                new Keyframe(.35f, 1.05f),
+                new Keyframe(1f, 1.65f)));
+
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(Color.white, 0f),
+                    new GradientColorKey(new Color(.83f, .70f, .52f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(.72f, 0f),
+                    new GradientAlphaKey(.30f, .48f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            ParticleSystem.ColorOverLifetimeModule color = particles.colorOverLifetime;
+            color.enabled = true;
+            color.color = gradient;
+
             ParticleSystemRenderer renderer = dust.GetComponent<ParticleSystemRenderer>();
             renderer.sharedMaterial = material;
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sortMode = ParticleSystemSortMode.YoungestInFront;
+            renderer.sortingFudge = 1.5f;
             return particles;
         }
 
@@ -504,7 +651,7 @@ namespace Dustbowl.Editor
             cameraObject.tag = "MainCamera";
             cameraObject.transform.SetParent(parent, false);
             UnityEngine.Camera camera = cameraObject.AddComponent<UnityEngine.Camera>();
-            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.clearFlags = CameraClearFlags.Skybox;
             camera.backgroundColor = Hex(0x1D3A63);
             camera.nearClipPlane = .2f;
             camera.farClipPlane = 1800f;
@@ -524,7 +671,7 @@ namespace Dustbowl.Editor
             Light sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.color = Hex(0xFFD6A0);
-            sun.intensity = 2.5f;
+            sun.intensity = 1.25f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = .72f;
             RenderSettings.sun = sun;
@@ -599,7 +746,7 @@ namespace Dustbowl.Editor
                     continue;
                 }
 
-                float y = DustbowlFlatsHeight.Sample(x, z);
+                float y = DustbowlFlatsNationalCourse.SampleNaturalHeight(x, z);
                 float scale = Mathf.Lerp(.55f, 2.4f, (float)random.NextDouble());
                 if (made % 3 == 0)
                 {
@@ -663,6 +810,103 @@ namespace Dustbowl.Editor
             material.color = color;
             material.SetFloat("_Metallic", metallic);
             material.SetFloat("_Smoothness", metallic > .5f ? .62f : .18f);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        private static Material DustMaterial()
+        {
+            const string path = Root + "/Materials/NationalDust.mat";
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (shader == null)
+            {
+                throw new InvalidOperationException("URP particle shader is unavailable.");
+            }
+
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(shader) { name = "NationalDust" };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            else
+            {
+                material.shader = shader;
+            }
+
+            Texture2D texture = SoftDustTexture();
+            material.SetTexture("_BaseMap", texture);
+            material.SetTexture("_MainTex", texture);
+            material.SetColor("_BaseColor", Color.white);
+            material.color = Color.white;
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.SetFloat("_AlphaClip", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.renderQueue = (int)RenderQueue.Transparent;
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        private static Texture2D SoftDustTexture()
+        {
+            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(SoftDustTexturePath);
+            if (texture == null)
+            {
+                const int size = 64;
+                texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                {
+                    name = "NationalDustSoft",
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                var pixels = new Color[size * size];
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        float px = (x + .5f) / size * 2f - 1f;
+                        float py = (y + .5f) / size * 2f - 1f;
+                        float alpha = Mathf.Pow(Mathf.Clamp01(1f - Mathf.Sqrt(px * px + py * py)), 1.55f);
+                        pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+                    }
+                }
+
+                texture.SetPixels(pixels);
+                texture.Apply();
+                AssetDatabase.CreateAsset(texture, SoftDustTexturePath);
+            }
+
+            return texture;
+        }
+
+        private static Material SkyMaterial()
+        {
+            Shader shader = Shader.Find("Dustbowl/SkyGradient");
+            if (shader == null)
+            {
+                throw new InvalidOperationException("The Dustbowl gradient sky shader is unavailable.");
+            }
+
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(SkyMaterialPath);
+            if (material == null)
+            {
+                material = new Material(shader) { name = "NationalSkyGradient" };
+                AssetDatabase.CreateAsset(material, SkyMaterialPath);
+            }
+            else
+            {
+                material.shader = shader;
+            }
+
+            material.SetColor("_TopColor", Hex(0x1D3A63));
+            material.SetColor("_MidColor", Hex(0xC07A72));
+            material.SetColor("_HazeColor", Hex(0xF6B077));
             EditorUtility.SetDirty(material);
             return material;
         }

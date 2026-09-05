@@ -29,8 +29,16 @@ namespace Dustbowl.Tests
             Assert.That(cameras, Is.Not.Null);
             Assert.That(hud, Is.Not.Null);
             Assert.That(race.Opponents.Count, Is.EqualTo(7));
-            Assert.That(race.State, Is.EqualTo(NationalRaceState.Countdown));
+            Assert.That(race.State, Is.EqualTo(NationalRaceState.PreRace));
             Assert.That(player.State.controlsEnabled, Is.False);
+            race.SetAutoThrottle(false);
+            Assert.That(race.AutoThrottleEnabled, Is.False);
+            Assert.That(player.AutoThrottleEnabled, Is.False);
+            race.SetAutoThrottle(true);
+            Assert.That(race.AutoThrottleEnabled, Is.True);
+            Assert.That(player.AutoThrottleEnabled, Is.True);
+            race.BeginRace();
+            Assert.That(race.State, Is.EqualTo(NationalRaceState.Countdown));
 
             Time.timeScale = 20f;
             try
@@ -42,6 +50,11 @@ namespace Dustbowl.Tests
                 Assert.That(race.Opponents.Where((value, index) =>
                     Mathf.Abs(Mathf.DeltaAngle(starts[index] / race.LapLength * 360f, value.Along / race.LapLength * 360f)) > .1f).Count(),
                     Is.EqualTo(7));
+
+                ParticleSystem[] roost = Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None);
+                Assert.That(roost.Length, Is.EqualTo(8));
+                Assert.That(roost.All(value => value.emission.rateOverTime.constantMax > 0f
+                    || value.emission.rateOverDistance.constantMax > 0f), Is.True);
 
                 var mapPositions = new List<Vector2>();
                 hud.CollectMinimapRiderPositions(mapPositions);
@@ -60,6 +73,8 @@ namespace Dustbowl.Tests
                 while (player.State.motionState == BikeMotionState.Wipeout) yield return null;
                 Assert.That(player.LastRecoveryDuration, Is.InRange(1.7f, 1.75f));
                 Assert.That(player.State.controlsEnabled, Is.True);
+                race.RequestQuit();
+                Assert.That(race.QuitRequested, Is.True);
             }
             finally
             {
@@ -74,6 +89,8 @@ namespace Dustbowl.Tests
             while (!load.isDone) yield return null;
             yield return null;
             NationalRaceManager race = Object.FindFirstObjectByType<NationalRaceManager>();
+            Assert.That(race.State, Is.EqualTo(NationalRaceState.PreRace));
+            race.BeginRace();
             Time.timeScale = 20f;
             try
             {

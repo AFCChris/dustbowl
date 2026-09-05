@@ -11,6 +11,7 @@ namespace Dustbowl.Race
 {
     public enum NationalRaceState
     {
+        PreRace,
         Countdown,
         Racing,
         Results
@@ -20,6 +21,11 @@ namespace Dustbowl.Race
     public sealed class NationalRaceManager : MonoBehaviour
     {
         private const float CountdownDuration = 3.4f;
+        private const string AutoThrottlePreference = "dustbowl.autoThrottle";
+        public const float PlayableRadius = 340f;
+        public const float BoundaryGuardRadius = PlayableRadius + 90f;
+        public const float BoundaryReturnRadius = PlayableRadius + 88f;
+        public const float BoundaryVelocityRetention = .3f;
 
         [SerializeField] private CourseSurface course;
         [SerializeField] private ArcadeBikeController player;
@@ -31,6 +37,9 @@ namespace Dustbowl.Race
         [SerializeField] private float currentLapTime;
         [SerializeField] private float bestLapTime;
         [SerializeField] private int playerPosition = 1;
+        [SerializeField] private bool autoThrottleEnabled = true;
+        [SerializeField] private bool quitRequested;
+        [SerializeField] private int boundaryGuardCount;
 
         private readonly RaceLapTracker playerLaps = new();
         private readonly List<float> playerLapTimes = new();
@@ -52,6 +61,9 @@ namespace Dustbowl.Race
         public float LapLength => course != null && course.Definition != null ? course.Definition.EndAlong : 0f;
         public CourseSurface Course => course;
         public ArcadeBikeController Player => player;
+        public bool AutoThrottleEnabled => autoThrottleEnabled;
+        public bool QuitRequested => quitRequested;
+        public int BoundaryGuardCount => boundaryGuardCount;
 
         public string CountdownText
         {
@@ -81,12 +93,37 @@ namespace Dustbowl.Race
             opponents = aiRiders ?? Array.Empty<NationalAIRider>();
         }
 
-        private void Start() => RestartRace();
+        private void Start()
+        {
+            autoThrottleEnabled = PlayerPrefs.GetInt(AutoThrottlePreference, 1) != 0;
+            ApplyThrottlePreference();
+            PrepareRace();
+        }
 
         private void Update()
         {
             if (course == null || player == null)
             {
+                return;
+            }
+
+            if (QuitPressed())
+            {
+                RequestQuit();
+                return;
+            }
+
+            if (ThrottleModePressed())
+            {
+                ToggleAutoThrottle();
+            }
+
+            if (state == NationalRaceState.PreRace)
+            {
+                if (StartPressed())
+                {
+                    BeginRace();
+                }
                 return;
             }
 
@@ -105,6 +142,14 @@ namespace Dustbowl.Race
                     state = NationalRaceState.Racing;
                     player.SetRaceControlEnabled(true);
                 }
+            }
+
+            if (player.ApplyPlayableAreaGuard(
+                    BoundaryGuardRadius,
+                    BoundaryReturnRadius,
+                    BoundaryVelocityRetention))
+            {
+                boundaryGuardCount++;
             }
 
             CourseSample playerSample = course.SampleCourse(player.State.position);
@@ -132,6 +177,50 @@ namespace Dustbowl.Race
 
         public void RestartRace()
         {
+            ResetRace(NationalRaceState.Countdown, CountdownDuration);
+        }
+
+        public void PrepareRace()
+        {
+            ResetRace(NationalRaceState.PreRace, 0f);
+        }
+
+        public void BeginRace()
+        {
+            if (state == NationalRaceState.PreRace)
+            {
+                RestartRace();
+            }
+        }
+
+        public void ToggleAutoThrottle()
+        {
+            SetAutoThrottle(!autoThrottleEnabled);
+        }
+
+        public void SetAutoThrottle(bool enabled)
+        {
+            autoThrottleEnabled = enabled;
+            PlayerPrefs.SetInt(AutoThrottlePreference, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+            ApplyThrottlePreference();
+        }
+
+        public void CycleCamera()
+        {
+            cameraModes?.Next();
+        }
+
+        public void RequestQuit()
+        {
+            quitRequested = true;
+#if !UNITY_EDITOR
+            Application.Quit();
+#endif
+        }
+
+        private void ResetRace(NationalRaceState nextState, float countdown)
+        {
             if (course == null || player == null || course.Definition.SpawnHints.Count == 0)
             {
                 return;
@@ -152,8 +241,14 @@ namespace Dustbowl.Race
             raceTime = 0f;
             currentLapTime = 0f;
             playerPosition = 1;
-            countdownRemaining = CountdownDuration;
-            state = NationalRaceState.Countdown;
+            boundaryGuardCount = 0;
+            countdownRemaining = countdown;
+            state = nextState;
+        }
+
+        private void ApplyThrottlePreference()
+        {
+            player?.SetAutoThrottle(autoThrottleEnabled);
         }
 
         public IReadOnlyList<string> BuildResults()
@@ -209,6 +304,25 @@ namespace Dustbowl.Race
         {
             return (Keyboard.current != null && Keyboard.current.enterKey.wasPressedThisFrame)
                 || (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame);
+        }
+
+        private static bool StartPressed()
+        {
+            return (Keyboard.current != null
+                    && (Keyboard.current.enterKey.wasPressedThisFrame
+                        || Keyboard.current.spaceKey.wasPressedThisFrame))
+                || (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame);
+        }
+
+        private static bool ThrottleModePressed()
+        {
+            return (Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame)
+                || (Gamepad.current != null && Gamepad.current.buttonWest.wasPressedThisFrame);
+        }
+
+        private static bool QuitPressed()
+        {
+            return Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
         }
 
         private readonly struct ResultEntry
