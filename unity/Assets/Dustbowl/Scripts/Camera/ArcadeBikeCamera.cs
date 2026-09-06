@@ -20,6 +20,12 @@ namespace Dustbowl.Camera
             initialized = false;
         }
 
+        /// <summary>Re-acquires the bike instantly on the next frame (grid resets, menu returns).</summary>
+        public void Snap()
+        {
+            initialized = false;
+        }
+
         private void LateUpdate()
         {
             if (bike == null || bike.CurrentSurface == null || cameraModes == null)

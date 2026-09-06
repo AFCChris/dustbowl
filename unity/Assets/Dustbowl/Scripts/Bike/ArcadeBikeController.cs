@@ -30,8 +30,19 @@ namespace Dustbowl.Bike
         private int takeoffCount;
         private int landingCount;
         private bool raceControlEnabled = true;
+        private bool hasThrottleModeOverride;
+        private ThrottleMode throttleModeOverride;
 
         public ArcadeBikeTuning Tuning => tuning;
+
+        /// <summary>
+        /// Active throttle scheme: the front-end selection when one has been made,
+        /// otherwise the tuning asset's default.
+        /// </summary>
+        public ThrottleMode ThrottleMode => hasThrottleModeOverride
+            ? throttleModeOverride
+            : (tuning == null || tuning.AutoThrottle ? ThrottleMode.Auto : ThrottleMode.Manual);
+
         public CourseSurface CurrentSurface => currentSurface;
         public BikeControllerState State => state;
         public TakeoffTrigger LastTakeoffTrigger => lastTakeoffTrigger;
@@ -68,6 +79,12 @@ namespace Dustbowl.Bike
         {
             raceControlEnabled = enabled;
             state.controlsEnabled = enabled && state.motionState != BikeMotionState.Wipeout;
+        }
+
+        public void SetThrottleMode(ThrottleMode mode)
+        {
+            hasThrottleModeOverride = true;
+            throttleModeOverride = mode;
         }
 
         public void InitializeAtSpawn()
@@ -240,9 +257,7 @@ namespace Dustbowl.Bike
             float forwardSpeed = Vector3.Dot(state.velocity, slopeForward);
             float speed = state.velocity.magnitude;
             float brake = Mathf.Clamp01(input.brake);
-            float throttle = tuning.AutoThrottle
-                ? (brake > 0f ? 0f : 1f)
-                : Mathf.Clamp01(input.throttle);
+            float throttle = ArcadeBikeRules.ResolveThrottle(ThrottleMode, input.throttle, brake);
 
             if (throttle > 0f)
             {

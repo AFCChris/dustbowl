@@ -23,6 +23,21 @@ namespace Dustbowl.Input
         public PlayerInputSnapshot Current { get; private set; }
         public InputActionAsset Actions => actions;
 
+        /// <summary>
+        /// While suspended (front-end screens, pause overlay) the snapshot reads as
+        /// no input so menu keys are never also interpreted as bike input.
+        /// </summary>
+        public bool Suspended { get; private set; }
+
+        public void SetSuspended(bool suspended)
+        {
+            Suspended = suspended;
+            if (suspended)
+            {
+                Current = default;
+            }
+        }
+
         public void Configure(InputActionAsset actionAsset)
         {
             actions = actionAsset;
@@ -42,7 +57,7 @@ namespace Dustbowl.Input
 
         private void Update()
         {
-            if (actions == null)
+            if (actions == null || Suspended)
             {
                 Current = default;
                 return;

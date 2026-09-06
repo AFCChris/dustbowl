@@ -4,6 +4,21 @@ namespace Dustbowl.Bike
 {
     public static class ArcadeBikeRules
     {
+        /// <summary>
+        /// Web-parity throttle resolution. In AUTO the engine drives itself and any
+        /// brake input suppresses it for as long as the brake is held; in MANUAL the
+        /// rider's own throttle axis is used unchanged.
+        /// </summary>
+        public static float ResolveThrottle(ThrottleMode mode, float throttleInput, float brakeInput)
+        {
+            if (mode == ThrottleMode.Auto)
+            {
+                return Mathf.Clamp01(brakeInput) > 0f ? 0f : 1f;
+            }
+
+            return Mathf.Clamp01(throttleInput);
+        }
+
         public static float EnginePower(float forwardSpeed, ArcadeBikeTuning tuning)
         {
             return tuning.GroundPower

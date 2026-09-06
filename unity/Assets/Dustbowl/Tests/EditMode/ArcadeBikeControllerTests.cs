@@ -27,6 +27,39 @@ namespace Dustbowl.Tests
         }
 
         [Test]
+        public void AutoThrottleDrivesUntilBrakeIsHeldAndManualUsesTheThrottleAxis()
+        {
+            Assert.That(ArcadeBikeRules.ResolveThrottle(ThrottleMode.Auto, 0f, 0f), Is.EqualTo(1f));
+            Assert.That(ArcadeBikeRules.ResolveThrottle(ThrottleMode.Auto, 1f, 0f), Is.EqualTo(1f));
+            Assert.That(ArcadeBikeRules.ResolveThrottle(ThrottleMode.Auto, 1f, .25f), Is.Zero, "Brake must suppress auto throttle while held.");
+            Assert.That(ArcadeBikeRules.ResolveThrottle(ThrottleMode.Auto, 0f, 0f), Is.EqualTo(1f), "Auto throttle resumes once the brake is released.");
+            Assert.That(ArcadeBikeRules.ResolveThrottle(ThrottleMode.Manual, 0f, 0f), Is.Zero, "Manual never drives by itself.");
+            Assert.That(ArcadeBikeRules.ResolveThrottle(ThrottleMode.Manual, .6f, 0f), Is.EqualTo(.6f).Within(0.0001f));
+            Assert.That(ArcadeBikeRules.ResolveThrottle(ThrottleMode.Manual, .6f, 1f), Is.EqualTo(.6f).Within(0.0001f));
+        }
+
+        [Test]
+        public void ThrottleModeDefaultsToTuningAndFollowsTheFrontEndSelection()
+        {
+            ArcadeBikeTuning tuning = LoadTuning();
+            var bike = new GameObject("ThrottleModeBike");
+            try
+            {
+                ArcadeBikeController controller = bike.AddComponent<ArcadeBikeController>();
+                controller.Configure(tuning, null, null, null);
+                Assert.That(controller.ThrottleMode, Is.EqualTo(tuning.AutoThrottle ? ThrottleMode.Auto : ThrottleMode.Manual));
+                controller.SetThrottleMode(ThrottleMode.Manual);
+                Assert.That(controller.ThrottleMode, Is.EqualTo(ThrottleMode.Manual));
+                controller.SetThrottleMode(ThrottleMode.Auto);
+                Assert.That(controller.ThrottleMode, Is.EqualTo(ThrottleMode.Auto));
+            }
+            finally
+            {
+                Object.DestroyImmediate(bike);
+            }
+        }
+
+        [Test]
         public void SteeringAuthorityMatchesWebSpeedShape()
         {
             ArcadeBikeTuning tuning = LoadTuning();
