@@ -31,6 +31,20 @@ namespace Dustbowl.Editor
         private const string TuningPath = Root + "/Settings/WebReferenceArcadeBikeTuning.asset";
         private const string InputPath = Root + "/Settings/DustbowlInputActions.inputactions";
         private const string BehaviourLabPath = Root + "/Scenes/Dustbowl_BehaviourLab.unity";
+        private const string PresentationProfilePath = Root + "/Settings/DustbowlFlats_Presentation.asset";
+        private const string RendererDataPath = Root + "/Settings/Dustbowl_UniversalRenderer.asset";
+        private const string SkyShaderPath = Root + "/Art/Shaders/DustbowlSkyGradient.shader";
+        private const string DesertTexturePath = Root + "/Art/Textures/DustbowlFlats_DesertSand_Albedo.png";
+        private const string ShoulderTexturePath = Root + "/Art/Textures/DustbowlFlats_CourseShoulder_Albedo.png";
+        private const string PackedDirtTexturePath = Root + "/Art/Textures/DustbowlFlats_PackedDirt_Albedo.png";
+        private const string DisplayFontPath = Root + "/Art/Fonts/BarlowCondensed-SemiBold.ttf";
+        private const string LabelFontPath = Root + "/Art/Fonts/ShareTechMono-Regular.ttf";
+        private const string UrpPostProcessDataPath =
+            "Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset";
+
+        // Web Dustbowl Flats sun direction (-0.55, 0.52, 0.65) after the Unity
+        // handedness flip, lifted a few degrees so packed dirt stays readable.
+        private static readonly Vector3 SunDirection = new Vector3(-.521f, .591f, -.616f).normalized;
 
         private static readonly Color[] RiderColors =
         {
@@ -47,9 +61,14 @@ namespace Dustbowl.Editor
             scene.name = "Dustbowl_National_Flats";
             var root = new GameObject("Dustbowl_National_DustbowlFlats");
 
-            Material sand = Material("NationalSand", Hex(0xE3BE86), 0f);
+            // Terrain colour now comes from generated albedo textures that port the
+            // web groundColor() rules (unity/Tools/generate-terrain-textures.js).
+            Material sand = TerrainMaterial("NationalSand", DesertTexturePath, Vector2.one, Hex(0xE3BE86), .12f);
             Material track = Material("NationalTrack", Hex(0x8A4520), 0f);
-            Material trackShoulder = Material("NationalTrackShoulder", Hex(0xB4783C), 0f);
+            Material trackShoulder = TerrainMaterial(
+                "NationalTrackShoulder", ShoulderTexturePath, new Vector2(1f, 63f), Hex(0xB4783C), .12f);
+            Material packedDirt = TerrainMaterial(
+                "NationalPackedDirt", PackedDirtTexturePath, new Vector2(1f, .76f), Hex(0x8A4520), .16f);
             Material dark = Material("NationalBikeDark", new Color(.025f, .03f, .035f), .38f);
             Material chrome = Material("NationalBikeMetal", new Color(.36f, .39f, .41f), .72f);
             Material skin = Material("NationalRiderSkin", new Color(.62f, .35f, .20f), .15f);
@@ -71,7 +90,7 @@ namespace Dustbowl.Editor
             var racingLineObject = new GameObject("Packed_Dirt_Racing_Surface");
             racingLineObject.transform.SetParent(root.transform, false);
             racingLineObject.AddComponent<MeshFilter>().sharedMesh = SaveMesh(BuildRacingLineMesh(surface), RacingLineMeshPath);
-            racingLineObject.AddComponent<MeshRenderer>().sharedMaterial = track;
+            racingLineObject.AddComponent<MeshRenderer>().sharedMaterial = packedDirt;
 
             var infrastructure = new GameObject("RaceInfrastructure");
             infrastructure.transform.SetParent(root.transform, false);
@@ -115,24 +134,19 @@ namespace Dustbowl.Editor
             NationalRaceManager race = infrastructure.AddComponent<NationalRaceManager>();
             race.Configure(surface, player, cameraModes, ai);
             NationalRaceHud hud = infrastructure.AddComponent<NationalRaceHud>();
-            hud.Configure(race, player);
+            hud.Configure(
+                race,
+                player,
+                AssetDatabase.LoadAssetAtPath<Font>(DisplayFontPath),
+                AssetDatabase.LoadAssetAtPath<Font>(LabelFontPath));
 
             CreateCamera(root.transform, player, cameraModes);
             CreateLighting(root.transform);
+            CreatePresentationVolume(root.transform);
             CreateStartFinish(root.transform, surface, track, dark, chrome);
             CreateCourseMarkers(root.transform, surface, RiderColors[0], chrome);
             CreateScenery(root.transform, surface);
-
-            RenderSettings.fog = true;
-            RenderSettings.fogColor = Hex(0xE8AC78);
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 310f;
-            RenderSettings.fogEndDistance = 1200f;
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = Hex(0x9DBBE8);
-            RenderSettings.ambientEquatorColor = Hex(0xC07A72);
-            RenderSettings.ambientGroundColor = Hex(0x7D5230);
-            RenderSettings.skybox = null;
+            ConfigureAtmosphere();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[]
@@ -142,7 +156,9 @@ namespace Dustbowl.Editor
             };
             PlayerSettings.companyName = "Dustbowl";
             PlayerSettings.productName = "Dustbowl";
+            PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.IL2CPP);
+            ConfigureRenderPipeline();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Verify();
@@ -504,13 +520,14 @@ namespace Dustbowl.Editor
             cameraObject.tag = "MainCamera";
             cameraObject.transform.SetParent(parent, false);
             UnityEngine.Camera camera = cameraObject.AddComponent<UnityEngine.Camera>();
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = Hex(0x1D3A63);
+            camera.clearFlags = CameraClearFlags.Skybox;
+            camera.backgroundColor = Hex(0x274E88);
             camera.nearClipPlane = .2f;
             camera.farClipPlane = 1800f;
             camera.fieldOfView = 62f;
             cameraObject.AddComponent<AudioListener>();
-            cameraObject.AddComponent<UniversalAdditionalCameraData>();
+            UniversalAdditionalCameraData cameraData = cameraObject.AddComponent<UniversalAdditionalCameraData>();
+            cameraData.renderPostProcessing = true;
             cameraObject.AddComponent<ArcadeBikeCamera>().Configure(player, modes);
             cameraObject.transform.position = player.transform.position + new Vector3(0f, 4f, -8f);
             cameraObject.transform.LookAt(player.transform.position + Vector3.up);
@@ -520,14 +537,114 @@ namespace Dustbowl.Editor
         {
             var sunObject = new GameObject("DesertSun");
             sunObject.transform.SetParent(parent, false);
-            sunObject.transform.rotation = Quaternion.Euler(54f, -138f, 0f);
+            sunObject.transform.rotation = Quaternion.LookRotation(-SunDirection, Vector3.up);
             Light sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = Hex(0xFFD6A0);
-            sun.intensity = 2.5f;
+            // Linear colour space: the web's 2.5 lambert intensity includes a 1/pi
+            // term, so URP needs roughly 1.5 for the same sunlit sand brightness.
+            sun.color = Hex(0xFFE4C4);
+            sun.intensity = 1.55f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = .72f;
+            sun.shadowStrength = .86f;
             RenderSettings.sun = sun;
+        }
+
+        private static void CreatePresentationVolume(Transform parent)
+        {
+            VolumeProfile profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(PresentationProfilePath);
+            if (profile == null)
+            {
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                AssetDatabase.CreateAsset(profile, PresentationProfilePath);
+                Tonemapping tonemapping = profile.Add<Tonemapping>(true);
+                tonemapping.mode.Override(TonemappingMode.Neutral);
+                ColorAdjustments grade = profile.Add<ColorAdjustments>(true);
+                grade.postExposure.Override(.2f);
+                grade.contrast.Override(8f);
+                grade.colorFilter.Override(new Color(1f, .97f, .92f));
+                grade.saturation.Override(10f);
+                Vignette vignette = profile.Add<Vignette>(true);
+                vignette.color.Override(new Color(.08f, .04f, .016f));
+                vignette.intensity.Override(.26f);
+                vignette.smoothness.Override(.45f);
+                EditorUtility.SetDirty(profile);
+            }
+
+            var volumeObject = new GameObject("Dustbowl_Presentation_Volume");
+            volumeObject.transform.SetParent(parent, false);
+            Volume volume = volumeObject.AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.sharedProfile = profile;
+        }
+
+        private static void ConfigureAtmosphere()
+        {
+            // Web Dustbowl Flats palette: dusk-blue zenith, dusty mid band, warm haze.
+            Shader skyShader = AssetDatabase.LoadAssetAtPath<Shader>(SkyShaderPath);
+            Material sky = null;
+            if (skyShader != null)
+            {
+                string path = $"{Root}/Materials/NationalSky.mat";
+                sky = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (sky == null)
+                {
+                    sky = new Material(skyShader) { name = "NationalSky" };
+                    AssetDatabase.CreateAsset(sky, path);
+                }
+
+                sky.shader = skyShader;
+                sky.SetColor("_ZenithColor", Hex(0x274E88));
+                sky.SetColor("_MidColor", Hex(0xC07A72));
+                sky.SetColor("_HorizonColor", Hex(0xF6B077));
+                sky.SetColor("_GroundColor", Hex(0xE8AC78));
+                sky.SetColor("_SunColor", Hex(0xFFF0C8));
+                sky.SetVector("_SunDirection", SunDirection);
+                sky.SetFloat("_MidHeight", .02f);
+                sky.SetFloat("_ZenithBlend", .34f);
+                sky.SetFloat("_HorizonBlend", .14f);
+                sky.SetFloat("_SunSize", .0015f);
+                sky.SetFloat("_SunGlow", .5f);
+                EditorUtility.SetDirty(sky);
+            }
+
+            RenderSettings.skybox = sky;
+            RenderSettings.fog = true;
+            RenderSettings.fogColor = Hex(0xE8AC78);
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogStartDistance = 300f;
+            RenderSettings.fogEndDistance = 1100f;
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            // Roughly the web hemisphere light (0.6 / pi) expressed as URP trilight sRGB.
+            RenderSettings.ambientSkyColor = Hex(0x7E93B4);
+            RenderSettings.ambientEquatorColor = Hex(0xA07C68);
+            RenderSettings.ambientGroundColor = Hex(0x5A3D28);
+        }
+
+        private static void ConfigureRenderPipeline()
+        {
+            var pipeline = GraphicsSettings.defaultRenderPipeline as UniversalRenderPipelineAsset;
+            if (pipeline != null)
+            {
+                pipeline.msaaSampleCount = 4;
+                pipeline.shadowDistance = 130f;
+                pipeline.shadowCascadeCount = 2;
+                var serialized = new SerializedObject(pipeline);
+                SerializedProperty softShadows = serialized.FindProperty("m_SoftShadowsSupported");
+                if (softShadows != null)
+                {
+                    softShadows.boolValue = true;
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                EditorUtility.SetDirty(pipeline);
+            }
+
+            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererDataPath);
+            if (renderer != null && renderer.postProcessData == null)
+            {
+                renderer.postProcessData = AssetDatabase.LoadAssetAtPath<PostProcessData>(UrpPostProcessDataPath);
+                EditorUtility.SetDirty(renderer);
+            }
         }
 
         private static void CreateStartFinish(Transform parent, CourseSurface surface, Material track, Material dark, Material chrome)
@@ -667,10 +784,23 @@ namespace Dustbowl.Editor
             return material;
         }
 
+        private static Material TerrainMaterial(
+            string name, string texturePath, Vector2 tiling, Color fallback, float smoothness)
+        {
+            Texture2D albedo = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+            Material material = Material(name, albedo != null ? Color.white : fallback, 0f);
+            material.SetFloat("_Smoothness", smoothness);
+            material.SetTexture("_BaseMap", albedo);
+            material.SetTextureScale("_BaseMap", tiling);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        // Material, light and render-setting colours are authored as sRGB values;
+        // Unity converts them itself when the project runs in linear colour space.
         private static Color Hex(uint rgb)
         {
-            Color srgb = new Color32((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
-            return QualitySettings.activeColorSpace == ColorSpace.Linear ? srgb.linear : srgb;
+            return new Color32((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
         }
 
         private static Mesh SaveMesh(Mesh generated, string path)

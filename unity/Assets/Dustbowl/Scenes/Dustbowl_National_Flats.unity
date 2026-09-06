@@ -18,15 +18,15 @@ RenderSettings:
   m_FogColor: {r: 0.9098039, g: 0.6745098, b: 0.47058824, a: 1}
   m_FogMode: 1
   m_FogDensity: 0.01
-  m_LinearFogStart: 310
-  m_LinearFogEnd: 1200
-  m_AmbientSkyColor: {r: 0.6156863, g: 0.73333335, b: 0.9098039, a: 1}
-  m_AmbientEquatorColor: {r: 0.7529412, g: 0.47843137, b: 0.44705883, a: 1}
-  m_AmbientGroundColor: {r: 0.49019608, g: 0.32156864, b: 0.1882353, a: 1}
+  m_LinearFogStart: 300
+  m_LinearFogEnd: 1100
+  m_AmbientSkyColor: {r: 0.49411765, g: 0.5764706, b: 0.7058824, a: 1}
+  m_AmbientEquatorColor: {r: 0.627451, g: 0.4862745, b: 0.40784314, a: 1}
+  m_AmbientGroundColor: {r: 0.3529412, g: 0.23921569, b: 0.15686275, a: 1}
   m_AmbientIntensity: 1
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: a95be3446b2e8e17cc5ba29714ff1793, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -51328,7 +51328,7 @@ MonoBehaviour:
     m_Bits: 1
   m_VolumeTrigger: {fileID: 0}
   m_VolumeFrameworkUpdateModeOption: 2
-  m_RenderPostProcessing: 0
+  m_RenderPostProcessing: 1
   m_Antialiasing: 0
   m_AntialiasingQuality: 2
   m_StopNaN: 0
@@ -51366,8 +51366,8 @@ Camera:
   m_GameObject: {fileID: 1035545504}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.11372549, g: 0.22745098, b: 0.3882353, a: 1}
+  m_ClearFlags: 1
+  m_BackGroundColor: {r: 0.15294118, g: 0.30588236, b: 0.53333336, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -62937,7 +62937,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 60f6c37e8ca92824591acbe5db059cf9, type: 2}
+  - {fileID: 2100000, guid: 89fe726ef0d75d9400e369bfa19dac5c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -65038,6 +65038,7 @@ Transform:
   - {fileID: 1501264385}
   - {fileID: 2132130526}
   - {fileID: 2058367458}
+  - {fileID: 1818440002}
   - {fileID: 1484119274}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -72436,7 +72437,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1501264384}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.16269568, y: -0.83182627, z: 0.42383665, w: 0.31930825}
+  m_LocalRotation: {x: 0.29175445, y: 0.32665395, z: -0.10676697, w: 0.89262386}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -72453,8 +72454,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
-  m_Color: {r: 1, g: 0.8392157, b: 0.627451, a: 1}
-  m_Intensity: 2.5
+  m_Color: {r: 1, g: 0.89411765, b: 0.76862746, a: 1}
+  m_Intensity: 1.55
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -72463,7 +72464,7 @@ Light:
     m_Type: 2
     m_Resolution: -1
     m_CustomResolution: -1
-    m_Strength: 0.72
+    m_Strength: 0.86
     m_Bias: 0.05
     m_NormalBias: 0.4
     m_NearPlane: 0.2
@@ -78798,6 +78799,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f9c51e1f1ebb4e24e994c3b1ea4677fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Dustbowl.Foundation::Dustbowl.Race.NationalRaceHud
+  displayFont: {fileID: 12800000, guid: e866b36ada9e21691f8fba8784f2aff2, type: 3}
+  labelFont: {fileID: 12800000, guid: f88454c9a51ec72e60843969f6bd7125, type: 3}
   race: {fileID: 1641102156}
   player: {fileID: 501593568}
 --- !u!114 &1641102156
@@ -108492,3 +108495,52 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1260886917}
+--- !u!1 &1818440001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1818440002}
+  - component: {fileID: 1818440003}
+  m_Layer: 0
+  m_Name: Dustbowl_Presentation_Volume
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1818440002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1818440001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1260886917}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1818440003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1818440001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.Volume
+  m_IsGlobal: 1
+  priority: 0
+  blendDistance: 0
+  weight: 1
+  sharedProfile: {fileID: 11400000, guid: 69b3f3fd27ccd48591b4fea8f4831e4c, type: 2}
