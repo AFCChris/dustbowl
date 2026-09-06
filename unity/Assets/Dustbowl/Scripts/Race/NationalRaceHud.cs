@@ -5,26 +5,37 @@ using UnityEngine;
 
 namespace Dustbowl.Race
 {
+    /// <summary>
+    /// Development race HUD styled after the web build's chrome: dark cut-corner
+    /// panels, small spaced monospace labels, condensed display numerals, amber
+    /// accents, a half-arc speedo and a course minimap with live rider markers.
+    /// Presentation only; it reads race and rider state and never writes it.
+    /// </summary>
     [DisallowMultipleComponent]
     public sealed class NationalRaceHud : MonoBehaviour
     {
+        private const float DesignHeight = 900f;
+        private const float PanelCut = 12f;
+        private const float SpeedArcMaxMph = 110f;
+        private const float MetresPerSecondToMph = 2.2369f;
+
         [SerializeField] private NationalRaceManager race;
         [SerializeField] private ArcadeBikeController player;
+        [SerializeField] private Font displayFont;
+        [SerializeField] private Font labelFont;
 
-        private GUIStyle title;
-        private GUIStyle label;
-        private GUIStyle small;
-        private GUIStyle countdown;
-        private GUIStyle result;
-        private Texture2D dark;
-        private Texture2D accent;
-        private Texture2D mapRoute;
-        private Texture2D mapStart;
-        private Texture2D mapPlayer;
-        private Texture2D[] mapOpponents;
-        private Vector2 mapMin;
-        private Vector2 mapMax;
-        private bool mapBoundsReady;
+        // Web shell.html palette.
+        private static readonly Color Sand = new(.890f, .745f, .525f);
+        private static readonly Color Ochre = new(.706f, .471f, .235f);
+        private static readonly Color Amber = new(1f, .690f, .125f);
+        private static readonly Color Alarm = new(.894f, .271f, .227f);
+        private static readonly Color Ink = new(.043f, .051f, .063f);
+        private static readonly Color Paper = new(.925f, .898f, .847f);
+        private static readonly Color Panel = new(.043f, .051f, .063f, .74f);
+        private static readonly Color PanelLine = new(.890f, .745f, .525f, .28f);
+        private static readonly Color LabelDim = new(.925f, .898f, .847f, .55f);
+        private static readonly Color MapRoute = new(.914f, .894f, .855f, .82f);
+        private static readonly Color MapRouteShadow = new(.043f, .051f, .063f, .70f);
 
         private static readonly Color[] OpponentMapColors =
         {
@@ -33,14 +44,47 @@ namespace Dustbowl.Race
             new(.91f, .27f, .05f)
         };
 
+        private GUIStyle label;
+        private GUIStyle labelLeft;
+        private GUIStyle numeral;
+        private GUIStyle numeralLarge;
+        private GUIStyle speedNumeral;
+        private GUIStyle countdown;
+        private GUIStyle eyebrow;
+        private GUIStyle titleDisplay;
+        private GUIStyle mono;
+        private GUIStyle monoRight;
+        private GUIStyle button;
+        private Texture2D white;
+        private Texture2D cutTopRight;
+        private Texture2D cutBottomLeft;
+        private Texture2D dot;
+        private Texture2D arrow;
+
+        private Vector2 mapMin;
+        private Vector2 mapMax;
+        private bool mapBoundsReady;
+        private Rect cachedMapRect;
+        private readonly List<Vector2> cachedRoute = new();
+
         public int MinimapTrackedRiderCount => race == null ? 0 : race.Opponents.Count + 1;
         public int MinimapCoursePointCount => race?.Course?.Definition?.LinePoints.Count ?? 0;
+        public bool HasCustomFonts => displayFont != null && labelFont != null;
 
         public void Configure(NationalRaceManager manager, ArcadeBikeController controller)
         {
+            Configure(manager, controller, displayFont, labelFont);
+        }
+
+        public void Configure(NationalRaceManager manager, ArcadeBikeController controller, Font display, Font labels)
+        {
             race = manager;
             player = controller;
+            displayFont = display;
+            labelFont = labels;
             mapBoundsReady = false;
+            cachedRoute.Clear();
+            label = null;
         }
 
         private void OnGUI()
@@ -51,74 +95,165 @@ namespace Dustbowl.Race
             }
 
             EnsureStyles();
-            float scale = Mathf.Max(1f, Screen.height / 900f);
+            float scale = Mathf.Max(.8f, Screen.height / DesignHeight);
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             float width = Screen.width / scale;
             float height = Screen.height / scale;
 
-            GUI.DrawTexture(new Rect(22f, 22f, 285f, 112f), dark);
-            GUI.DrawTexture(new Rect(22f, 22f, 7f, 112f), accent);
-            GUI.Label(new Rect(44f, 32f, 250f, 30f), "DUSTBOWL NATIONAL", title);
-            GUI.Label(new Rect(44f, 62f, 250f, 26f), $"LAP  {race.PlayerLap} / {race.TotalLaps}", label);
-            GUI.Label(new Rect(44f, 88f, 250f, 28f), $"POS  {race.PlayerPosition} / {race.TotalRiders}", label);
-
-            GUI.DrawTexture(new Rect(width - 272f, 22f, 250f, 112f), dark);
-            float speed = new Vector2(player.State.velocity.x, player.State.velocity.z).magnitude;
-            GUI.Label(new Rect(width - 250f, 32f, 215f, 32f), $"{speed * 3.6f:000}  KM/H", title);
-            GUI.Label(new Rect(width - 250f, 69f, 215f, 24f), NationalRaceManager.FormatTime(race.RaceTime), label);
-            GUI.Label(new Rect(width - 250f, 96f, 215f, 22f), race.CameraMode.ToString().ToUpperInvariant(), small);
-
-            DrawMinimap(new Rect(22f, 146f, 228f, 190f));
-
-            GUI.Label(new Rect(22f, height - 48f, width - 44f, 28f),
-                "STEER  A/D or LEFT STICK     BRAKE  S or LT     AIR  R/F + Q/E or RIGHT STICK     CAMERA  C / RB     RESET  BACKSPACE / Y",
-                small);
+            DrawRacePanel(new Rect(16f, 16f, 312f, 178f));
+            DrawMinimapPanel(new Rect(width - 16f - 236f, 16f, 236f, 236f));
+            DrawCameraChip(new Rect(width - 16f - 236f, 16f + 236f + 8f, 236f, 26f));
+            DrawSpeedo(new Rect(16f, height - 18f - 128f, 190f, 128f));
+            DrawControlsHint(new Rect(0f, height - 30f, width, 18f));
 
             if (race.State == NationalRaceState.Countdown)
             {
-                GUI.Label(new Rect(0f, height * .30f, width, 150f), race.CountdownText, countdown);
-                GUI.Label(new Rect(0f, height * .30f + 130f, width, 40f), "DUSTBOWL FLATS  ·  3 LAPS", result);
+                DrawCountdown(width, height);
             }
             else if (race.State == NationalRaceState.Results)
             {
-                float panelWidth = 480f;
-                float panelHeight = 430f;
-                Rect panel = new((width - panelWidth) * .5f, (height - panelHeight) * .5f, panelWidth, panelHeight);
-                GUI.DrawTexture(panel, dark);
-                GUI.DrawTexture(new Rect(panel.x, panel.y, panel.width, 8f), accent);
-                GUI.Label(new Rect(panel.x, panel.y + 25f, panel.width, 48f), "NATIONAL COMPLETE", countdown);
-                GUI.Label(new Rect(panel.x, panel.y + 86f, panel.width, 32f),
-                    $"{race.PlayerPosition}{Ordinal(race.PlayerPosition)} PLACE  ·  {NationalRaceManager.FormatTime(race.RaceTime)}", result);
-                var results = race.BuildResults();
-                for (int index = 0; index < results.Count; index++)
-                {
-                    GUI.Label(new Rect(panel.x + 72f, panel.y + 135f + index * 28f, panel.width - 120f, 26f), results[index], label);
-                }
-
-                GUI.Label(new Rect(panel.x, panel.y + panel.height - 48f, panel.width, 30f),
-                    "ENTER / A  ·  RACE AGAIN", result);
+                DrawResults(width, height);
             }
         }
 
-        private void EnsureStyles()
+        // ------------------------------------------------------------ panels
+
+        private void DrawRacePanel(Rect rect)
         {
-            if (dark != null) return;
-            dark = Solid(new Color(.035f, .045f, .055f, .90f));
-            accent = Solid(new Color(.96f, .31f, .08f, 1f));
-            title = Style(23, FontStyle.Bold, TextAnchor.MiddleLeft, Color.white);
-            label = Style(19, FontStyle.Bold, TextAnchor.MiddleLeft, new Color(.93f, .86f, .72f));
-            small = Style(14, FontStyle.Bold, TextAnchor.MiddleCenter, new Color(1f, .88f, .68f));
-            countdown = Style(76, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
-            result = Style(20, FontStyle.Bold, TextAnchor.MiddleCenter, new Color(1f, .71f, .28f));
-            mapRoute = Solid(new Color(.91f, .89f, .85f, .78f));
-            mapStart = Solid(new Color(1f, .69f, .13f, 1f));
-            mapPlayer = Solid(new Color(.89f, .27f, .23f, 1f));
-            mapOpponents = new Texture2D[OpponentMapColors.Length];
-            for (int index = 0; index < mapOpponents.Length; index++)
-            {
-                mapOpponents[index] = Solid(OpponentMapColors[index]);
-            }
+            DrawPanel(rect);
+            float x = rect.x + 18f;
+            float column = (rect.width - 36f) * .5f;
+            float y = rect.y + 12f;
+
+            Stat(new Rect(x, y, column, 48f), "LAP TIME", FormatLapClock(race.CurrentLapTime), Amber, numeral);
+            Stat(new Rect(x + column, y, column, 48f), "BEST LAP",
+                race.BestLapTime > 0f ? FormatLapClock(race.BestLapTime) : "\u2014:\u2014\u2014", Paper, numeral);
+            y += 52f;
+            float lapDone = race.LapLength > 0f ? Mathf.Clamp01(race.PlayerAlong / race.LapLength) : 0f;
+            Stat(new Rect(x, y, column, 48f), "LAP DONE", $"{Mathf.RoundToInt(lapDone * 100f)}%", Paper, numeral);
+            Stat(new Rect(x + column, y, column, 48f), "LAP", $"{race.PlayerLap}/{race.TotalLaps}", Paper, numeral);
+            y += 52f;
+            Stat(new Rect(x, y, rect.width - 36f, 56f), "POSITION", $"P {race.PlayerPosition}/{race.TotalRiders}", Amber, numeralLarge);
         }
+
+        private void Stat(Rect rect, string caption, string value, Color color, GUIStyle style)
+        {
+            GUI.Label(new Rect(rect.x, rect.y, rect.width, 14f), caption, labelLeft);
+            Rect valueRect = new(rect.x - 1f, rect.y + 13f, rect.width, rect.height - 13f);
+            style.normal.textColor = color;
+            GUI.Label(valueRect, value, style);
+        }
+
+        private void DrawMinimapPanel(Rect rect)
+        {
+            DrawPanel(rect);
+            DrawMinimap(new Rect(rect.x + 12f, rect.y + 12f, rect.width - 24f, rect.height - 24f));
+        }
+
+        private void DrawCameraChip(Rect rect)
+        {
+            DrawChip(rect);
+            GUI.Label(new Rect(rect.x + 12f, rect.y, rect.width * .5f, rect.height), "CAMERA", labelLeft);
+            GUI.Label(new Rect(rect.x, rect.y, rect.width - 12f, rect.height),
+                race.CameraMode.ToString().ToUpperInvariant(), Right(monoRight, Sand));
+        }
+
+        private void DrawSpeedo(Rect rect)
+        {
+            float speed = new Vector2(player.State.velocity.x, player.State.velocity.z).magnitude;
+            float mph = speed * MetresPerSecondToMph;
+            float fill = Mathf.Clamp01(mph / SpeedArcMaxMph);
+            Vector2 centre = new(rect.x + rect.width * .5f, rect.y + rect.height - 22f);
+            float radius = rect.width * .5f - 12f;
+
+            DrawArc(centre, radius, 0f, 1f, 12f, new Color(Ink.r, Ink.g, Ink.b, .70f));
+            DrawArc(centre, radius, 0f, 1f, 12f, new Color(Sand.r, Sand.g, Sand.b, .18f));
+            if (fill > 0f)
+            {
+                DrawArc(centre, radius, 0f, fill, 12f, Amber);
+            }
+
+            string value = Mathf.RoundToInt(mph).ToString();
+            Rect valueRect = new(rect.x, centre.y - 68f, rect.width, 66f);
+            ShadowedLabel(valueRect, value, speedNumeral, Paper, 2f);
+            GUI.Label(new Rect(rect.x, centre.y - 6f, rect.width, 16f), "MPH", label);
+        }
+
+        private void DrawControlsHint(Rect rect)
+        {
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, .62f);
+            GUI.Label(rect,
+                "STEER  A/D · LEFT STICK      BRAKE  S · LT      AIR  R/F + Q/E · RIGHT STICK      CAMERA  C/V · RB/LB      RESET  BACKSPACE · Y",
+                label);
+            GUI.color = previous;
+        }
+
+        private void DrawCountdown(float width, float height)
+        {
+            string text = race.CountdownText;
+            bool go = text == "GO!";
+            GUI.Label(new Rect(0f, height * .22f, width, 22f),
+                $"{DustbowlFlatsNationalCourse.CourseName.ToUpperInvariant()}  ·  NATIONAL  ·  {race.TotalLaps} LAPS",
+                Center(eyebrow, Sand));
+            ShadowedLabel(new Rect(0f, height * .22f + 10f, width, 220f), text, countdown, go ? Paper : Amber, 6f);
+        }
+
+        private void DrawResults(float width, float height)
+        {
+            IReadOnlyList<string> results = race.BuildResults();
+            IReadOnlyList<float> laps = race.PlayerLapTimes;
+            float panelWidth = 560f;
+            float panelHeight = 318f + results.Count * 26f + laps.Count * 22f;
+            Rect panel = new((width - panelWidth) * .5f, (height - panelHeight) * .5f, panelWidth, panelHeight);
+            DrawPanel(panel, new Color(Ink.r, Ink.g, Ink.b, .90f));
+
+            float x = panel.x + 40f;
+            float inner = panel.width - 80f;
+            float y = panel.y + 26f;
+            GUI.Label(new Rect(x, y, inner, 16f),
+                $"RACE COMPLETE  ·  {DustbowlFlatsNationalCourse.CourseName.ToUpperInvariant()}  ·  {race.TotalLaps} LAPS",
+                Left(eyebrow, Ochre));
+            y += 20f;
+            ShadowedLabel(new Rect(x - 2f, y, inner, 76f), "FINISHED!", titleDisplay, Sand, 4f);
+            y += 84f;
+            Rule(new Rect(x, y, inner, 1f));
+            y += 14f;
+            Stat(new Rect(x, y, inner * .5f, 52f), "RACE TIME", FormatLapClock(race.RaceTime), Amber, numeralLarge);
+            Stat(new Rect(x + inner * .5f, y, inner * .5f, 52f), "BEST LAP",
+                race.BestLapTime > 0f ? FormatLapClock(race.BestLapTime) : "\u2014:\u2014\u2014", Amber, numeralLarge);
+            y += 60f;
+            Rule(new Rect(x, y, inner, 1f));
+            y += 10f;
+
+            for (int index = 0; index < results.Count; index++)
+            {
+                bool isPlayer = results[index].Contains("YOU");
+                GUI.Label(new Rect(x, y, inner, 24f), results[index], Left(mono, isPlayer ? Amber : Paper));
+                y += 26f;
+            }
+
+            Rule(new Rect(x, y, inner, 1f));
+            y += 8f;
+            GUI.Label(new Rect(x, y, inner, 16f), "YOUR LAP TIMES", labelLeft);
+            y += 18f;
+            for (int index = 0; index < laps.Count; index++)
+            {
+                bool best = laps[index] <= race.BestLapTime + .0005f;
+                GUI.Label(new Rect(x, y, inner, 20f), $"LAP {index + 1}", Left(mono, LabelDim));
+                GUI.Label(new Rect(x, y, inner, 20f), FormatLapClock(laps[index]) + (best ? "  BEST" : ""),
+                    Right(monoRight, best ? Amber : Paper));
+                y += 22f;
+            }
+
+            Rect action = new(x, panel.y + panel.height - 62f, 236f, 42f);
+            DrawCutRect(action, Amber);
+            GUI.Label(action, "RACE AGAIN", Center(button, Ink));
+            GUI.Label(new Rect(action.xMax + 16f, action.y, inner - action.width - 16f, action.height),
+                "ENTER  ·  GAMEPAD A", Left(mono, LabelDim));
+        }
+
+        // ----------------------------------------------------------- minimap
 
         public Vector2 WorldToMinimapNormalized(Vector3 worldPosition)
         {
@@ -152,32 +287,41 @@ namespace Dustbowl.Race
             }
 
             EnsureMapBounds();
-            GUI.DrawTexture(rect, dark);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, 6f, rect.height), accent);
-            GUI.Label(new Rect(rect.x + 12f, rect.y + 5f, rect.width - 20f, 20f), "COURSE", small);
-            Rect courseRect = new(rect.x + 14f, rect.y + 27f, rect.width - 27f, rect.height - 39f);
-            IReadOnlyList<CourseLinePoint> points = race.Course.Definition.LinePoints;
-            for (int index = 0; index < points.Count - 1; index += 3)
+            EnsureRoute(rect);
+
+            // Faint play-area ring, as in the web map.
+            Vector2 ringCentre = new(rect.center.x, rect.center.y);
+            DrawRing(ringCentre, rect.width * .5f - 1f, 1f, new Color(Amber.r, Amber.g, Amber.b, .22f));
+
+            for (int index = 0; index < cachedRoute.Count; index++)
             {
-                int next = Mathf.Min(index + 3, points.Count - 1);
-                DrawLine(MapToRect(points[index].center, courseRect), MapToRect(points[next].center, courseRect), mapRoute, 2.5f);
+                Vector2 next = cachedRoute[(index + 1) % cachedRoute.Count];
+                DrawLine(cachedRoute[index], next, MapRouteShadow, 7f);
             }
 
-            DrawMarker(MapToRect(points[0].center, courseRect), mapStart, 7f);
+            for (int index = 0; index < cachedRoute.Count; index++)
+            {
+                Vector2 next = cachedRoute[(index + 1) % cachedRoute.Count];
+                DrawLine(cachedRoute[index], next, MapRoute, 3f);
+            }
+
+            IReadOnlyList<CourseLinePoint> points = race.Course.Definition.LinePoints;
+            Vector2 start = MapToRect(points[0].center, rect);
+            DrawDot(start, 11f, MapRouteShadow);
+            DrawDot(start, 8f, Amber);
+
             for (int index = 0; index < race.Opponents.Count; index++)
             {
-                DrawMarker(
-                    MapToRect(race.Opponents[index].transform.position, courseRect),
-                    mapOpponents[index % mapOpponents.Length],
-                    6f);
+                Vector2 point = MapToRect(race.Opponents[index].transform.position, rect);
+                DrawDot(point, 11f, MapRouteShadow);
+                DrawDot(point, 8f, OpponentMapColors[index % OpponentMapColors.Length]);
             }
 
-            Vector2 playerPoint = MapToRect(player.State.position, courseRect);
-            DrawMarker(playerPoint, mapPlayer, 8f);
-            Vector2 heading = new(
-                Mathf.Sin(player.State.yawRadians),
-                -Mathf.Cos(player.State.yawRadians));
-            DrawLine(playerPoint, playerPoint + heading.normalized * 10f, mapPlayer, 2f);
+            Vector2 playerPoint = MapToRect(player.State.position, rect);
+            Vector2 heading = new(Mathf.Sin(player.State.yawRadians), -Mathf.Cos(player.State.yawRadians));
+            float angle = Mathf.Atan2(heading.y, heading.x) * Mathf.Rad2Deg + 90f;
+            DrawArrow(playerPoint, angle, 22f, MapRouteShadow);
+            DrawArrow(playerPoint, angle, 17f, Alarm);
         }
 
         private void EnsureMapBounds()
@@ -196,10 +340,26 @@ namespace Dustbowl.Race
                 mapMax = Vector2.Max(mapMax, source);
             }
 
-            Vector2 padding = (mapMax - mapMin) * .06f;
+            Vector2 padding = (mapMax - mapMin) * .08f;
             mapMin -= padding;
             mapMax += padding;
             mapBoundsReady = true;
+        }
+
+        private void EnsureRoute(Rect rect)
+        {
+            if (cachedRoute.Count > 0 && cachedMapRect == rect)
+            {
+                return;
+            }
+
+            cachedRoute.Clear();
+            cachedMapRect = rect;
+            IReadOnlyList<CourseLinePoint> points = race.Course.Definition.LinePoints;
+            for (int index = 0; index < points.Count - 1; index += 3)
+            {
+                cachedRoute.Add(MapToRect(points[index].center, rect));
+            }
         }
 
         private Vector2 MapToRect(Vector3 worldPosition, Rect rect)
@@ -224,12 +384,120 @@ namespace Dustbowl.Race
                 Mathf.Lerp(fitted.yMin, fitted.yMax, normalized.y));
         }
 
-        private static void DrawMarker(Vector2 center, Texture2D texture, float size)
+        // ------------------------------------------------------- primitives
+
+        private void DrawPanel(Rect rect) => DrawPanel(rect, Panel);
+
+        private void DrawPanel(Rect rect, Color fill)
         {
-            GUI.DrawTexture(new Rect(center.x - size * .5f, center.y - size * .5f, size, size), texture);
+            DrawCutRect(rect, fill);
+            Color previous = GUI.color;
+            GUI.color = PanelLine;
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width - PanelCut, 1f), white);
+            GUI.DrawTexture(new Rect(rect.x, rect.y, 1f, rect.height - PanelCut), white);
+            GUI.DrawTexture(new Rect(rect.xMax - 1f, rect.y + PanelCut, 1f, rect.height - PanelCut), white);
+            GUI.DrawTexture(new Rect(rect.x + PanelCut, rect.yMax - 1f, rect.width - PanelCut, 1f), white);
+            GUI.color = previous;
         }
 
-        private static void DrawLine(Vector2 start, Vector2 end, Texture2D texture, float thickness)
+        private void DrawChip(Rect rect)
+        {
+            Color previous = GUI.color;
+            GUI.color = Panel;
+            GUI.DrawTexture(rect, white);
+            GUI.color = PanelLine;
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 1f), white);
+            GUI.DrawTexture(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), white);
+            GUI.DrawTexture(new Rect(rect.x, rect.y, 1f, rect.height), white);
+            GUI.DrawTexture(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), white);
+            GUI.color = previous;
+        }
+
+        /// <summary>Filled rectangle with the web panel's clipped top-right and bottom-left corners.</summary>
+        private void DrawCutRect(Rect rect, Color fill)
+        {
+            Color previous = GUI.color;
+            GUI.color = fill;
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width - PanelCut, PanelCut), white);
+            GUI.DrawTexture(new Rect(rect.x, rect.y + PanelCut, rect.width, rect.height - PanelCut * 2f), white);
+            GUI.DrawTexture(new Rect(rect.x + PanelCut, rect.yMax - PanelCut, rect.width - PanelCut, PanelCut), white);
+            GUI.DrawTexture(new Rect(rect.xMax - PanelCut, rect.y, PanelCut, PanelCut), cutTopRight);
+            GUI.DrawTexture(new Rect(rect.x, rect.yMax - PanelCut, PanelCut, PanelCut), cutBottomLeft);
+            GUI.color = previous;
+        }
+
+        private void Rule(Rect rect)
+        {
+            Color previous = GUI.color;
+            GUI.color = PanelLine;
+            GUI.DrawTexture(rect, white);
+            GUI.color = previous;
+        }
+
+        private void ShadowedLabel(Rect rect, string text, GUIStyle style, Color color, float offset)
+        {
+            style.normal.textColor = new Color(0f, 0f, 0f, .55f);
+            GUI.Label(new Rect(rect.x + offset * .5f, rect.y + offset, rect.width, rect.height), text, style);
+            style.normal.textColor = color;
+            GUI.Label(rect, text, style);
+        }
+
+        private void DrawArc(Vector2 centre, float radius, float from, float to, float thickness, Color color)
+        {
+            const int segments = 40;
+            int first = Mathf.FloorToInt(from * segments);
+            int last = Mathf.CeilToInt(to * segments);
+            Vector2 previous = ArcPoint(centre, radius, from);
+            for (int index = first + 1; index <= last; index++)
+            {
+                float t = Mathf.Min(to, index / (float)segments);
+                Vector2 next = ArcPoint(centre, radius, t);
+                DrawLine(previous, next, color, thickness);
+                previous = next;
+                if (t >= to) break;
+            }
+        }
+
+        private static Vector2 ArcPoint(Vector2 centre, float radius, float t)
+        {
+            // Half circle from the left (0) over the top to the right (1), as in the web speedo.
+            float angle = Mathf.PI * (1f - t);
+            return new Vector2(centre.x + Mathf.Cos(angle) * radius, centre.y - Mathf.Sin(angle) * radius);
+        }
+
+        private void DrawRing(Vector2 centre, float radius, float thickness, Color color)
+        {
+            const int segments = 48;
+            Vector2 previous = centre + new Vector2(radius, 0f);
+            for (int index = 1; index <= segments; index++)
+            {
+                float angle = index / (float)segments * Mathf.PI * 2f;
+                Vector2 next = centre + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+                DrawLine(previous, next, color, thickness);
+                previous = next;
+            }
+        }
+
+        private void DrawDot(Vector2 centre, float size, Color color)
+        {
+            Color previous = GUI.color;
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(centre.x - size * .5f, centre.y - size * .5f, size, size), dot);
+            GUI.color = previous;
+        }
+
+        private void DrawArrow(Vector2 centre, float angle, float size, Color color)
+        {
+            Matrix4x4 previousMatrix = GUI.matrix;
+            Color previousColor = GUI.color;
+            GUIUtility.RotateAroundPivot(angle, centre);
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(centre.x - size * .5f, centre.y - size * .5f, size, size), arrow);
+            GUI.color = previousColor;
+            GUI.matrix = previousMatrix;
+        }
+
+        private void DrawLine(Vector2 start, Vector2 end, Color color, float thickness)
         {
             Vector2 delta = end - start;
             if (delta.sqrMagnitude < .01f)
@@ -237,36 +505,199 @@ namespace Dustbowl.Race
                 return;
             }
 
-            Matrix4x4 previous = GUI.matrix;
+            Matrix4x4 previousMatrix = GUI.matrix;
+            Color previousColor = GUI.color;
             float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
             GUIUtility.RotateAroundPivot(angle, start);
-            GUI.DrawTexture(new Rect(start.x, start.y - thickness * .5f, delta.magnitude, thickness), texture);
-            GUI.matrix = previous;
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(start.x - thickness * .5f, start.y - thickness * .5f, delta.magnitude + thickness, thickness), white);
+            GUI.color = previousColor;
+            GUI.matrix = previousMatrix;
         }
 
-        private static GUIStyle Style(int size, FontStyle fontStyle, TextAnchor alignment, Color color)
+        // ------------------------------------------------------------ styles
+
+        private void EnsureStyles()
+        {
+            if (label != null) return;
+            Font display = displayFont != null ? displayFont : GUI.skin.font;
+            Font monoFont = labelFont != null ? labelFont : GUI.skin.font;
+
+            label = Style(monoFont, 11, TextAnchor.MiddleCenter, LabelDim);
+            labelLeft = Style(monoFont, 11, TextAnchor.MiddleLeft, LabelDim);
+            mono = Style(monoFont, 15, TextAnchor.MiddleLeft, Paper);
+            monoRight = Style(monoFont, 13, TextAnchor.MiddleRight, Sand);
+            eyebrow = Style(monoFont, 13, TextAnchor.MiddleCenter, Sand);
+            numeral = Style(display, 30, TextAnchor.UpperLeft, Paper);
+            numeralLarge = Style(display, 38, TextAnchor.UpperLeft, Amber);
+            speedNumeral = Style(display, 64, TextAnchor.LowerCenter, Paper);
+            countdown = Style(display, 190, TextAnchor.MiddleCenter, Amber);
+            titleDisplay = Style(display, 74, TextAnchor.MiddleLeft, Sand);
+            button = Style(display, 26, TextAnchor.MiddleCenter, Ink);
+
+            white = Solid(Color.white);
+            cutTopRight = CornerCut(false);
+            cutBottomLeft = CornerCut(true);
+            dot = Dot();
+            arrow = Arrow();
+        }
+
+        private static GUIStyle Style(Font font, int size, TextAnchor alignment, Color color)
         {
             return new GUIStyle(GUI.skin.label)
             {
+                font = font,
                 fontSize = size,
-                fontStyle = fontStyle,
+                fontStyle = FontStyle.Normal,
                 alignment = alignment,
+                wordWrap = false,
+                clipping = TextClipping.Overflow,
+                padding = new RectOffset(0, 0, 0, 0),
                 normal = { textColor = color }
             };
         }
 
+        private static GUIStyle Left(GUIStyle source, Color color)
+        {
+            source.alignment = TextAnchor.MiddleLeft;
+            source.normal.textColor = color;
+            return source;
+        }
+
+        private static GUIStyle Right(GUIStyle source, Color color)
+        {
+            source.alignment = TextAnchor.MiddleRight;
+            source.normal.textColor = color;
+            return source;
+        }
+
+        private static GUIStyle Center(GUIStyle source, Color color)
+        {
+            source.alignment = TextAnchor.MiddleCenter;
+            source.normal.textColor = color;
+            return source;
+        }
+
         private static Texture2D Solid(Color color)
         {
-            var texture = new Texture2D(1, 1) { hideFlags = HideFlags.HideAndDontSave };
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave };
             texture.SetPixel(0, 0, color);
             texture.Apply();
             return texture;
         }
 
-        private static string Ordinal(int value)
+        /// <summary>
+        /// White square with one transparent diagonal half; tinted through GUI.color.
+        /// The bottom-left variant keeps the top-right half, the other keeps the bottom-left half.
+        /// </summary>
+        private static Texture2D CornerCut(bool keepTopRight)
         {
-            if (value is 11 or 12 or 13) return "TH";
-            return (value % 10) switch { 1 => "ST", 2 => "ND", 3 => "RD", _ => "TH" };
+            const int size = 32;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.HideAndDontSave,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = (x + .5f) / size;
+                    float v = (y + .5f) / size;
+                    float signedDistance = (u + v - 1f) * size;
+                    float alpha = Mathf.Clamp01((keepTopRight ? signedDistance : -signedDistance) + .5f);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return texture;
+        }
+
+        private static Texture2D Dot()
+        {
+            const int size = 32;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.HideAndDontSave,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x + .5f - size * .5f;
+                    float dy = y + .5f - size * .5f;
+                    float alpha = Mathf.Clamp01(size * .5f - 1f - Mathf.Sqrt(dx * dx + dy * dy) + .5f);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return texture;
+        }
+
+        /// <summary>Upward-pointing chevron arrow used for the player marker.</summary>
+        private static Texture2D Arrow()
+        {
+            const int size = 48;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.HideAndDontSave,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+            Vector2 tip = new(.5f, .96f);
+            Vector2 left = new(.12f, .08f);
+            Vector2 right = new(.88f, .08f);
+            Vector2 notch = new(.5f, .34f);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    int covered = 0;
+                    for (int sy = 0; sy < 3; sy++)
+                    {
+                        for (int sx = 0; sx < 3; sx++)
+                        {
+                            Vector2 p = new((x + (sx + .5f) / 3f) / size, (y + (sy + .5f) / 3f) / size);
+                            if (InsideTriangle(p, tip, left, notch) || InsideTriangle(p, tip, notch, right))
+                            {
+                                covered++;
+                            }
+                        }
+                    }
+
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, covered / 9f));
+                }
+            }
+
+            texture.Apply();
+            return texture;
+        }
+
+        private static bool InsideTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+        {
+            float d1 = Sign(p, a, b);
+            float d2 = Sign(p, b, c);
+            float d3 = Sign(p, c, a);
+            bool hasNegative = d1 < 0f || d2 < 0f || d3 < 0f;
+            bool hasPositive = d1 > 0f || d2 > 0f || d3 > 0f;
+            return !(hasNegative && hasPositive);
+        }
+
+        private static float Sign(Vector2 p, Vector2 a, Vector2 b)
+        {
+            return (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+        }
+
+        private static string FormatLapClock(float seconds)
+        {
+            if (seconds < 0f) seconds = 0f;
+            int minutes = Mathf.FloorToInt(seconds / 60f);
+            return $"{minutes}:{seconds - minutes * 60f:00.00}";
         }
     }
 }
