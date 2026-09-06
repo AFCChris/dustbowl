@@ -19,6 +19,17 @@ The first Windows playtest identified four parity defects. This corrective pass 
 - **Basic palette:** the placeholder scene now uses the actual Dustbowl Flats web palette for pale sand (`#E3BE86`), ochre shoulders (`#B4783C`), packed red dirt (`#8A4520`), dusk-blue sky (`#1D3A63`), warm haze (`#E8AC78`), sunlight, rocks and scrub. Terrain materials are non-metallic. This is a readability correction, not final production art.
 - **Minimap:** `NationalRaceHud` now draws a lightweight course outline in web-map orientation, a start marker, a heading-aware player marker and seven color-coded live opponent markers. It reads the authoritative `CourseDefinition` and rider transforms rather than maintaining separate race progress.
 
+## Presentation pass 1 (terrain, sky, lighting, HUD, minimap)
+
+The second human review accepted race direction, geometry, steering, AI count and race flow but judged the colours, lighting, HUD typography and minimap substantially worse than the web build. This pass touches presentation only. Course generation, `CourseSurface`, `ArcadeBikeController`, `NationalAIRider`, `RaceLapTracker`, `NationalRaceManager`, cameras, bike/rider meshes and dust are unchanged; the web build remains the style reference.
+
+- **Colour space:** the project now renders in linear colour space, which URP expects. Authored sRGB palette values are left as sRGB in materials, lights and render settings and converted by Unity. The sun drops from `2.5` to `1.55` because URP's lambert term no longer hides a `1/pi` factor.
+- **Terrain:** the three terrain materials use generated albedo textures (`unity/Tools/generate-terrain-textures.js`) that port the web `groundColor()` mottling: pale sand with ochre and scrub blotches, ochre shoulders that darken toward the racing surface, and packed red-brown clay with twin wheel ruts. The racing ribbon has its own `NationalPackedDirt` material so the start gantry keeps the flat `NationalTrack` colour.
+- **Sky and atmosphere:** `Dustbowl/Sky Gradient` is a small unlit skybox shader with dusk-blue zenith, dusty mid band, warm horizon haze and a sun disc aligned with `DesertSun`. Fog starts at `300 m` and completes at `1100 m` in the web haze colour; trilight ambient approximates the web hemisphere light.
+- **Post-processing:** a global `Volume` (`Settings/DustbowlFlats_Presentation.asset`) applies neutral tonemapping, `+0.2` exposure, mild contrast/saturation, a warm filter and a soft vignette. The renderer receives URP `PostProcessData`, MSAA 4×, two shadow cascades, soft shadows and a `130 m` shadow distance. Graphics settings never change gameplay rules.
+- **HUD:** `NationalRaceHud` keeps its `Configure(race, player)` API and read-only race queries but redraws the layout after the web shell: Barlow Condensed numerals with Share Tech Mono labels (both SIL OFL, see `unity/ASSET_REGISTER.md`), a cut-corner race panel with lap clock, best lap, lap-done percentage, lap count and position (mirroring the web stat block), a camera chip, an arc speedometer in mph, a bottom controls hint, a large drop-shadowed countdown and a results board that highlights the player row and the best lap. Everything scales from a `900 px` design height (minimum scale `0.8`) so nothing clips at 16:9, 16:10 or the Steam Deck's `1280×800`.
+- **Minimap:** the map is a `236 px` framed panel (about `283 px` at 1080p) with a compass ring, the full course drawn as a thick outlined ribbon in web orientation, a start marker, seven coloured opponent dots and a rotating player chevron, using the same authoritative course line and rider transforms as before.
+
 ## Architecture
 
 - `DustbowlFlatsNationalCourse` deterministically rebuilds the web course's nine normalized layout points, Hermite centreline, seeded land height, nine-pass grade smoothing, twelve-pass bank smoothing, authored start rotation, section speed hints and all nine feature zones.
@@ -79,6 +90,8 @@ Build output must remain outside the repository.
 Verified Windows Development Build:
 
 `C:\Users\chris\Documents\DustbowlBuilds\PlayableParityPlaytestFix1\Dustbowl.exe`
+
+Presentation pass 1 was authored on a Linux agent host without the Unity Editor. Its scene, material, project-settings and URP asset edits were made directly in the serialized YAML and mirrored in `PlayableParitySetup.Configure`, all GUID references were cross-checked against `.meta` files, and the C# was compiled with the .NET 8 compiler against Unity API stubs. The new EditMode test `PresentationPassWiresSkyLightingPostProcessingTerrainTexturesAndHudFonts` and a fresh Windows Development Build must be run on the Windows workstation before this pass is treated as verified.
 
 Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity checks, all 30 EditMode tests and all 3 PlayMode tests. The correction-specific checks verify web-equivalent course winding, the entire closed course corridor against the broad desert mesh, all eight live minimap markers, opponent marker movement and Chase/Close/Overhead cycling. The IL2CPP player remained live during smoke launch, rendered the corrected National scene and minimap in a direct window capture under Unity `6000.3.23f1` with D3D12, Input System and PhysX, and emitted no runtime exception in its launch log.
 

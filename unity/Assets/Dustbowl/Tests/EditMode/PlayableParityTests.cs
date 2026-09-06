@@ -94,6 +94,43 @@ namespace Dustbowl.Tests
         }
 
         [Test]
+        public void PresentationPassWiresSkyLightingPostProcessingTerrainTexturesAndHudFonts()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath);
+            GameObject[] roots = scene.GetRootGameObjects();
+
+            Assert.That(PlayerSettings.colorSpace, Is.EqualTo(ColorSpace.Linear));
+            Assert.That(RenderSettings.skybox, Is.Not.Null, "The National scene needs the gradient sky material.");
+            Assert.That(RenderSettings.skybox.shader.name, Is.EqualTo("Dustbowl/Sky Gradient"));
+            Assert.That(RenderSettings.fog, Is.True);
+            Assert.That(RenderSettings.ambientMode, Is.EqualTo(UnityEngine.Rendering.AmbientMode.Trilight));
+
+            Light sun = roots.SelectMany(root => root.GetComponentsInChildren<Light>(true))
+                .Single(light => light.type == LightType.Directional);
+            Assert.That(sun.intensity, Is.InRange(1f, 2f), "Linear-space sun intensity must not blow out the sand.");
+            Assert.That(sun.transform.forward.y, Is.LessThan(-.5f).And.GreaterThan(-.7f));
+
+            UnityEngine.Camera camera = roots.SelectMany(root => root.GetComponentsInChildren<UnityEngine.Camera>(true)).Single();
+            Assert.That(camera.clearFlags, Is.EqualTo(CameraClearFlags.Skybox));
+            Assert.That(camera.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>().renderPostProcessing, Is.True);
+
+            UnityEngine.Rendering.Volume volume = roots.SelectMany(root => root.GetComponentsInChildren<UnityEngine.Rendering.Volume>(true)).Single();
+            Assert.That(volume.isGlobal, Is.True);
+            Assert.That(volume.sharedProfile, Is.Not.Null);
+            Assert.That(volume.sharedProfile.Has<UnityEngine.Rendering.Universal.Tonemapping>(), Is.True);
+
+            foreach (string objectName in new[] { "Dustbowl_Desert_Landform", "Authoritative_DustbowlFlats_Surface", "Packed_Dirt_Racing_Surface" })
+            {
+                MeshRenderer renderer = roots.SelectMany(root => root.GetComponentsInChildren<MeshRenderer>(true))
+                    .Single(value => value.gameObject.name == objectName);
+                Assert.That(renderer.sharedMaterial.GetTexture("_BaseMap"), Is.Not.Null, $"{objectName} must use a terrain albedo texture.");
+            }
+
+            NationalRaceHud hud = roots.SelectMany(root => root.GetComponentsInChildren<NationalRaceHud>(true)).Single();
+            Assert.That(hud.HasCustomFonts, Is.True, "The HUD must reference the display and label fonts.");
+        }
+
+        [Test]
         public void LapGateRejectsStartLineFarmingAndFinishesAfterThreeRealLaps()
         {
             const float length = 1000f;

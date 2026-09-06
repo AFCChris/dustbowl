@@ -3,7 +3,9 @@
   "rootNamespace": "Dustbowl.Tests",
   "references": [
     "Dustbowl.Foundation",
-    "Unity.InputSystem"
+    "Unity.InputSystem",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"
