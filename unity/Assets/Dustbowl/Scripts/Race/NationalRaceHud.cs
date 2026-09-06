@@ -18,6 +18,9 @@ namespace Dustbowl.Race
         private const float PanelCut = 12f;
         private const float SpeedArcMaxMph = 110f;
         private const float MetresPerSecondToMph = 2.2369f;
+        private const float MinimapPanelSize = 236f;
+        private const float MinimapInnerSize = MinimapPanelSize - 24f;
+        private const int CourseMapResolution = 512;
 
         [SerializeField] private NationalRaceManager race;
         [SerializeField] private ArcadeBikeController player;
@@ -64,8 +67,7 @@ namespace Dustbowl.Race
         private Vector2 mapMin;
         private Vector2 mapMax;
         private bool mapBoundsReady;
-        private Rect cachedMapRect;
-        private readonly List<Vector2> cachedRoute = new();
+        private Texture2D courseMap;
 
         public int MinimapTrackedRiderCount => race == null ? 0 : race.Opponents.Count + 1;
         public int MinimapCoursePointCount => race?.Course?.Definition?.LinePoints.Count ?? 0;
@@ -83,8 +85,22 @@ namespace Dustbowl.Race
             displayFont = display;
             labelFont = labels;
             mapBoundsReady = false;
-            cachedRoute.Clear();
+            ReleaseCourseMap();
             label = null;
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseCourseMap();
+        }
+
+        private void ReleaseCourseMap()
+        {
+            if (courseMap != null)
+            {
+                Destroy(courseMap);
+                courseMap = null;
+            }
         }
 
         private void OnGUI()
@@ -101,8 +117,8 @@ namespace Dustbowl.Race
             float height = Screen.height / scale;
 
             DrawRacePanel(new Rect(16f, 16f, 312f, 178f));
-            DrawMinimapPanel(new Rect(width - 16f - 236f, 16f, 236f, 236f));
-            DrawCameraChip(new Rect(width - 16f - 236f, 16f + 236f + 8f, 236f, 26f));
+            DrawMinimapPanel(new Rect(width - 16f - MinimapPanelSize, 16f, MinimapPanelSize, MinimapPanelSize));
+            DrawCameraChip(new Rect(width - 16f - MinimapPanelSize, 16f + MinimapPanelSize + 8f, MinimapPanelSize, 26f));
             DrawSpeedo(new Rect(16f, height - 18f - 128f, 190f, 128f));
             DrawControlsHint(new Rect(0f, height - 30f, width, 18f));
 
@@ -279,6 +295,83 @@ namespace Dustbowl.Race
             }
         }
 
+        /// <summary>
+        /// Rasterises the full course loop and the play-area ring into one square
+        /// texture whose pixels map 1:1 onto the minimap's inner rect. Drawing the
+        /// map as a single texture keeps every route pixel inside the panel by
+        /// construction; only the rider markers are positioned per frame.
+        /// </summary>
+        public Texture2D BuildCourseMapTexture(int resolution)
+        {
+            IReadOnlyList<CourseLinePoint> points = race.Course.Definition.LinePoints;
+            EnsureMapBounds();
+
+            // Stroke widths are authored in design pixels for a MinimapInnerSize map.
+            float pixelsPerDesignUnit = resolution / MinimapInnerSize;
+            float outlineRadius = 4f * pixelsPerDesignUnit;
+            float fillRadius = 2f * pixelsPerDesignUnit;
+            float ringRadius = (MinimapInnerSize * .5f - 2.5f) * pixelsPerDesignUnit;
+            float ringHalfWidth = .6f * pixelsPerDesignUnit;
+            Vector2 centre = new(resolution * .5f, resolution * .5f);
+
+            var routeDistance = new float[resolution * resolution];
+            for (int index = 0; index < routeDistance.Length; index++)
+            {
+                routeDistance[index] = float.PositiveInfinity;
+            }
+
+            int margin = Mathf.CeilToInt(outlineRadius) + 2;
+            for (int index = 0; index < points.Count; index++)
+            {
+                Vector2 a = FitToMap(WorldToMinimapNormalized(points[index].center)) * resolution;
+                Vector2 b = FitToMap(WorldToMinimapNormalized(points[(index + 1) % points.Count].center)) * resolution;
+                int minX = Mathf.Max(0, Mathf.FloorToInt(Mathf.Min(a.x, b.x)) - margin);
+                int maxX = Mathf.Min(resolution - 1, Mathf.CeilToInt(Mathf.Max(a.x, b.x)) + margin);
+                int minY = Mathf.Max(0, Mathf.FloorToInt(Mathf.Min(a.y, b.y)) - margin);
+                int maxY = Mathf.Min(resolution - 1, Mathf.CeilToInt(Mathf.Max(a.y, b.y)) + margin);
+                for (int y = minY; y <= maxY; y++)
+                {
+                    for (int x = minX; x <= maxX; x++)
+                    {
+                        float distance = DistanceToSegment(new Vector2(x + .5f, y + .5f), a, b);
+                        int cell = y * resolution + x;
+                        if (distance < routeDistance[cell])
+                        {
+                            routeDistance[cell] = distance;
+                        }
+                    }
+                }
+            }
+
+            var texture = new Texture2D(resolution, resolution, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.HideAndDontSave,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                name = "DustbowlFlats_MinimapCourse"
+            };
+            var pixels = new Color32[resolution * resolution];
+            Color ring = new(Amber.r, Amber.g, Amber.b, .22f);
+            for (int y = 0; y < resolution; y++)
+            {
+                for (int x = 0; x < resolution; x++)
+                {
+                    int cell = y * resolution + x;
+                    float ringDistance = Mathf.Abs((new Vector2(x + .5f, y + .5f) - centre).magnitude - ringRadius);
+                    Color color = ring;
+                    color.a *= Mathf.Clamp01(ringHalfWidth - ringDistance + .5f);
+                    color = Over(color, MapRouteShadow, Mathf.Clamp01(outlineRadius - routeDistance[cell] + .5f));
+                    color = Over(color, MapRoute, Mathf.Clamp01(fillRadius - routeDistance[cell] + .5f));
+                    // Texture rows run bottom-up while map y runs top-down.
+                    pixels[(resolution - 1 - y) * resolution + x] = color;
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+            return texture;
+        }
+
         private void DrawMinimap(Rect rect)
         {
             if (MinimapCoursePointCount < 2)
@@ -286,38 +379,35 @@ namespace Dustbowl.Race
                 return;
             }
 
-            EnsureMapBounds();
-            EnsureRoute(rect);
+            EnsureCourseMap();
 
-            // Faint play-area ring, as in the web map.
-            Vector2 ringCentre = new(rect.center.x, rect.center.y);
-            DrawRing(ringCentre, rect.width * .5f - 1f, 1f, new Color(Amber.r, Amber.g, Amber.b, .22f));
-
-            for (int index = 0; index < cachedRoute.Count; index++)
-            {
-                Vector2 next = cachedRoute[(index + 1) % cachedRoute.Count];
-                DrawLine(cachedRoute[index], next, MapRouteShadow, 7f);
-            }
-
-            for (int index = 0; index < cachedRoute.Count; index++)
-            {
-                Vector2 next = cachedRoute[(index + 1) % cachedRoute.Count];
-                DrawLine(cachedRoute[index], next, MapRoute, 3f);
-            }
+            // Everything except the rotated player chevron is drawn inside a GUI
+            // group, which clips to the inner rect even if a marker strays.
+            GUI.BeginGroup(rect);
+            Rect local = new(0f, 0f, rect.width, rect.height);
+            Color previous = GUI.color;
+            GUI.color = Color.white;
+            GUI.DrawTexture(local, courseMap, ScaleMode.StretchToFill, true);
+            GUI.color = previous;
 
             IReadOnlyList<CourseLinePoint> points = race.Course.Definition.LinePoints;
-            Vector2 start = MapToRect(points[0].center, rect);
+            Vector2 start = ClampMarker(MapToRect(points[0].center, local), local, 6f);
             DrawDot(start, 11f, MapRouteShadow);
             DrawDot(start, 8f, Amber);
 
             for (int index = 0; index < race.Opponents.Count; index++)
             {
-                Vector2 point = MapToRect(race.Opponents[index].transform.position, rect);
+                Vector2 point = ClampMarker(MapToRect(race.Opponents[index].transform.position, local), local, 6f);
                 DrawDot(point, 11f, MapRouteShadow);
                 DrawDot(point, 8f, OpponentMapColors[index % OpponentMapColors.Length]);
             }
 
-            Vector2 playerPoint = MapToRect(player.State.position, rect);
+            GUI.EndGroup();
+
+            // The chevron rotates through GUI.matrix, so it is drawn outside the
+            // group in plain design coordinates and clamped so its whole rotated
+            // footprint stays inside the panel.
+            Vector2 playerPoint = ClampMarker(MapToRect(player.State.position, rect), rect, 12f);
             Vector2 heading = new(Mathf.Sin(player.State.yawRadians), -Mathf.Cos(player.State.yawRadians));
             float angle = Mathf.Atan2(heading.y, heading.x) * Mathf.Rad2Deg + 90f;
             DrawArrow(playerPoint, angle, 22f, MapRouteShadow);
@@ -346,42 +436,65 @@ namespace Dustbowl.Race
             mapBoundsReady = true;
         }
 
-        private void EnsureRoute(Rect rect)
+        private void EnsureCourseMap()
         {
-            if (cachedRoute.Count > 0 && cachedMapRect == rect)
+            if (courseMap != null)
             {
                 return;
             }
 
-            cachedRoute.Clear();
-            cachedMapRect = rect;
-            IReadOnlyList<CourseLinePoint> points = race.Course.Definition.LinePoints;
-            for (int index = 0; index < points.Count - 1; index += 3)
+            courseMap = BuildCourseMapTexture(CourseMapResolution);
+        }
+
+        /// <summary>Aspect-fits normalized course coordinates into the square map, centred.</summary>
+        private Vector2 FitToMap(Vector2 normalized)
+        {
+            float sourceAspect = Mathf.Max(.001f, (mapMax.x - mapMin.x) / (mapMax.y - mapMin.y));
+            if (sourceAspect > 1f)
             {
-                cachedRoute.Add(MapToRect(points[index].center, rect));
+                float height = 1f / sourceAspect;
+                return new Vector2(normalized.x, (1f - height) * .5f + normalized.y * height);
             }
+
+            float width = sourceAspect;
+            return new Vector2((1f - width) * .5f + normalized.x * width, normalized.y);
         }
 
         private Vector2 MapToRect(Vector3 worldPosition, Rect rect)
         {
-            Vector2 normalized = WorldToMinimapNormalized(worldPosition);
-            float sourceAspect = Mathf.Max(.001f, (mapMax.x - mapMin.x) / (mapMax.y - mapMin.y));
-            float rectAspect = rect.width / rect.height;
-            Rect fitted = rect;
-            if (sourceAspect > rectAspect)
+            Vector2 fitted = FitToMap(WorldToMinimapNormalized(worldPosition));
+            return new Vector2(
+                Mathf.Lerp(rect.xMin, rect.xMax, fitted.x),
+                Mathf.Lerp(rect.yMin, rect.yMax, fitted.y));
+        }
+
+        private static Vector2 ClampMarker(Vector2 point, Rect rect, float inset)
+        {
+            return new Vector2(
+                Mathf.Clamp(point.x, rect.xMin + inset, rect.xMax - inset),
+                Mathf.Clamp(point.y, rect.yMin + inset, rect.yMax - inset));
+        }
+
+        private static float DistanceToSegment(Vector2 point, Vector2 a, Vector2 b)
+        {
+            Vector2 ab = b - a;
+            float lengthSquared = ab.sqrMagnitude;
+            float t = lengthSquared > 0f ? Mathf.Clamp01(Vector2.Dot(point - a, ab) / lengthSquared) : 0f;
+            return (point - (a + ab * t)).magnitude;
+        }
+
+        private static Color Over(Color under, Color over, float coverage)
+        {
+            float alpha = over.a * coverage;
+            float outAlpha = alpha + under.a * (1f - alpha);
+            if (outAlpha <= 0f)
             {
-                fitted.height = rect.width / sourceAspect;
-                fitted.y += (rect.height - fitted.height) * .5f;
-            }
-            else
-            {
-                fitted.width = rect.height * sourceAspect;
-                fitted.x += (rect.width - fitted.width) * .5f;
+                return Color.clear;
             }
 
-            return new Vector2(
-                Mathf.Lerp(fitted.xMin, fitted.xMax, normalized.x),
-                Mathf.Lerp(fitted.yMin, fitted.yMax, normalized.y));
+            Color result = (over * alpha + under * under.a * (1f - alpha)) / outAlpha;
+            result.a = outAlpha;
+            return result;
         }
 
         // ------------------------------------------------------- primitives
@@ -465,19 +578,6 @@ namespace Dustbowl.Race
             return new Vector2(centre.x + Mathf.Cos(angle) * radius, centre.y - Mathf.Sin(angle) * radius);
         }
 
-        private void DrawRing(Vector2 centre, float radius, float thickness, Color color)
-        {
-            const int segments = 48;
-            Vector2 previous = centre + new Vector2(radius, 0f);
-            for (int index = 1; index <= segments; index++)
-            {
-                float angle = index / (float)segments * Mathf.PI * 2f;
-                Vector2 next = centre + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
-                DrawLine(previous, next, color, thickness);
-                previous = next;
-            }
-        }
-
         private void DrawDot(Vector2 centre, float size, Color color)
         {
             Color previous = GUI.color;
@@ -490,11 +590,24 @@ namespace Dustbowl.Race
         {
             Matrix4x4 previousMatrix = GUI.matrix;
             Color previousColor = GUI.color;
-            GUIUtility.RotateAroundPivot(angle, centre);
+            RotateAround(angle, centre);
             GUI.color = color;
             GUI.DrawTexture(new Rect(centre.x - size * .5f, centre.y - size * .5f, size, size), arrow);
             GUI.color = previousColor;
             GUI.matrix = previousMatrix;
+        }
+
+        /// <summary>
+        /// Rotates subsequent GUI drawing around a pivot given in the current design
+        /// coordinates. GUIUtility.RotateAroundPivot is deliberately not used: it
+        /// composes the rotation on the screen side of GUI.matrix without scaling
+        /// the pivot, so under the HUD's resolution scale every rotated quad swung
+        /// around the wrong point and the minimap route sprayed across the view.
+        /// </summary>
+        private static void RotateAround(float angle, Vector2 pivot)
+        {
+            GUI.matrix *= Matrix4x4.TRS(pivot, Quaternion.Euler(0f, 0f, angle), Vector3.one)
+                * Matrix4x4.TRS(-pivot, Quaternion.identity, Vector3.one);
         }
 
         private void DrawLine(Vector2 start, Vector2 end, Color color, float thickness)
@@ -508,7 +621,7 @@ namespace Dustbowl.Race
             Matrix4x4 previousMatrix = GUI.matrix;
             Color previousColor = GUI.color;
             float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
-            GUIUtility.RotateAroundPivot(angle, start);
+            RotateAround(angle, start);
             GUI.color = color;
             GUI.DrawTexture(new Rect(start.x - thickness * .5f, start.y - thickness * .5f, delta.magnitude + thickness, thickness), white);
             GUI.color = previousColor;

@@ -94,6 +94,48 @@ namespace Dustbowl.Tests
         }
 
         [Test]
+        public void MinimapCourseBakeStaysInsideItsPanelAndDrawsTheWholeLoop()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath);
+            NationalRaceHud hud = scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<NationalRaceHud>(true)).Single();
+
+            const int resolution = 256;
+            Texture2D map = hud.BuildCourseMapTexture(resolution);
+            try
+            {
+                Color32[] pixels = map.GetPixels32();
+                int borderAlpha = 0;
+                int routePixels = 0;
+                int minX = resolution, maxX = -1, minY = resolution, maxY = -1;
+                for (int y = 0; y < resolution; y++)
+                {
+                    for (int x = 0; x < resolution; x++)
+                    {
+                        Color32 pixel = pixels[y * resolution + x];
+                        bool border = x == 0 || y == 0 || x == resolution - 1 || y == resolution - 1;
+                        if (border) borderAlpha = Mathf.Max(borderAlpha, pixel.a);
+                        if (pixel.a > 200)
+                        {
+                            routePixels++;
+                            minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x);
+                            minY = Mathf.Min(minY, y); maxY = Mathf.Max(maxY, y);
+                        }
+                    }
+                }
+
+                Assert.That(borderAlpha, Is.EqualTo(0), "Nothing on the baked minimap may touch the panel edge.");
+                Assert.That(routePixels, Is.GreaterThan(resolution * 4), "The course stroke must be visible.");
+                Assert.That(maxX - minX, Is.GreaterThan(resolution / 2), "The loop must fill the map horizontally.");
+                Assert.That(maxY - minY, Is.GreaterThan(resolution / 2), "The loop must fill the map vertically.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(map);
+            }
+        }
+
+        [Test]
         public void PresentationPassWiresSkyLightingPostProcessingTerrainTexturesAndHudFonts()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath);
