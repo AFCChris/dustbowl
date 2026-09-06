@@ -134,14 +134,17 @@ namespace Dustbowl.Editor
 
             NationalRaceManager race = infrastructure.AddComponent<NationalRaceManager>();
             race.Configure(surface, player, cameraModes, ai);
+            ArcadeBikeCamera followCamera = CreateCamera(root.transform, player, cameraModes);
+            GameFlowController flow = infrastructure.AddComponent<GameFlowController>();
+            flow.Configure(race, player, cameraModes, input, followCamera);
             NationalRaceHud hud = infrastructure.AddComponent<NationalRaceHud>();
             hud.Configure(
                 race,
                 player,
+                flow,
                 AssetDatabase.LoadAssetAtPath<Font>(DisplayFontPath),
                 AssetDatabase.LoadAssetAtPath<Font>(LabelFontPath));
 
-            CreateCamera(root.transform, player, cameraModes);
             CreateLighting(root.transform);
             CreatePresentationVolume(root.transform);
             CreateStartFinish(root.transform, surface, track, dark, chrome);
@@ -613,7 +616,7 @@ namespace Dustbowl.Editor
             return material;
         }
 
-        private static void CreateCamera(Transform parent, ArcadeBikeController player, CameraModeController modes)
+        private static ArcadeBikeCamera CreateCamera(Transform parent, ArcadeBikeController player, CameraModeController modes)
         {
             var cameraObject = new GameObject("Main Camera");
             cameraObject.tag = "MainCamera";
@@ -627,9 +630,11 @@ namespace Dustbowl.Editor
             cameraObject.AddComponent<AudioListener>();
             UniversalAdditionalCameraData cameraData = cameraObject.AddComponent<UniversalAdditionalCameraData>();
             cameraData.renderPostProcessing = true;
-            cameraObject.AddComponent<ArcadeBikeCamera>().Configure(player, modes);
+            ArcadeBikeCamera followCamera = cameraObject.AddComponent<ArcadeBikeCamera>();
+            followCamera.Configure(player, modes);
             cameraObject.transform.position = player.transform.position + new Vector3(0f, 4f, -8f);
             cameraObject.transform.LookAt(player.transform.position + Vector3.up);
+            return followCamera;
         }
 
         private static void CreateLighting(Transform parent)

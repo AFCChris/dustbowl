@@ -5,7 +5,6 @@ using Dustbowl.Bike;
 using Dustbowl.Camera;
 using Dustbowl.Course;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace Dustbowl.Race
 {
@@ -13,7 +12,9 @@ namespace Dustbowl.Race
     {
         Countdown,
         Racing,
-        Results
+        Results,
+        /// <summary>Riders parked on the grid behind the front-end; no clocks run.</summary>
+        Idle
     }
 
     [DisallowMultipleComponent]
@@ -81,18 +82,21 @@ namespace Dustbowl.Race
             opponents = aiRiders ?? Array.Empty<NationalAIRider>();
         }
 
-        private void Start() => RestartRace();
+        // The scene opens on the grid behind the setup screen; GameFlowController
+        // starts, restarts and abandons events. Without a flow controller (older
+        // scenes, tests) the manager still races on its own from Start.
+        private void Start()
+        {
+            if (state != NationalRaceState.Idle)
+            {
+                RestartRace();
+            }
+        }
 
         private void Update()
         {
-            if (course == null || player == null)
+            if (course == null || player == null || state == NationalRaceState.Idle)
             {
-                return;
-            }
-
-            if (state == NationalRaceState.Results && RestartPressed())
-            {
-                RestartRace();
                 return;
             }
 
@@ -130,7 +134,13 @@ namespace Dustbowl.Race
                 opponent.EffectiveDistance(LapLength, TotalLaps) > playerDistance);
         }
 
-        public void RestartRace()
+        /// <summary>Resets the whole field to the grid and runs the normal countdown.</summary>
+        public void RestartRace() => ResetField(NationalRaceState.Countdown);
+
+        /// <summary>Resets the whole field to the grid and holds it there for the front-end.</summary>
+        public void HoldOnGrid() => ResetField(NationalRaceState.Idle);
+
+        private void ResetField(NationalRaceState nextState)
         {
             if (course == null || player == null || course.Definition.SpawnHints.Count == 0)
             {
@@ -152,8 +162,8 @@ namespace Dustbowl.Race
             raceTime = 0f;
             currentLapTime = 0f;
             playerPosition = 1;
-            countdownRemaining = CountdownDuration;
-            state = NationalRaceState.Countdown;
+            countdownRemaining = nextState == NationalRaceState.Countdown ? CountdownDuration : 0f;
+            state = nextState;
         }
 
         public IReadOnlyList<string> BuildResults()
@@ -203,12 +213,6 @@ namespace Dustbowl.Race
                 state = NationalRaceState.Results;
                 player.SetRaceControlEnabled(false);
             }
-        }
-
-        private static bool RestartPressed()
-        {
-            return (Keyboard.current != null && Keyboard.current.enterKey.wasPressedThisFrame)
-                || (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame);
         }
 
         private readonly struct ResultEntry

@@ -44,7 +44,7 @@
         { "id": "950d8f7b-fd74-4ff0-aa06-3d524996334d", "path": "<Keyboard>/v", "action": "CameraPrevious", "groups": "Keyboard" },
         { "id": "574c4d65-b271-43eb-9327-10cccf94b799", "path": "<Gamepad>/select", "action": "ScenarioNext", "groups": "Gamepad" },
         { "id": "33a3cb04-345b-4d13-b971-0a3e47270866", "path": "<Keyboard>/tab", "action": "ScenarioNext", "groups": "Keyboard" },
-        { "id": "1bd737fc-e88e-47fd-b652-6e1f5680c2a1", "path": "<Gamepad>/start", "action": "TelemetryToggle", "groups": "Gamepad" },
+        { "id": "1bd737fc-e88e-47fd-b652-6e1f5680c2a1", "path": "<Gamepad>/leftStickPress", "action": "TelemetryToggle", "groups": "Gamepad" },
         { "id": "33f0004b-e936-475f-99ba-a727124b54e2", "path": "<Keyboard>/f9", "action": "TelemetryToggle", "groups": "Keyboard" },
         { "id": "0855e28d-1bbf-4e39-b995-5d3c2a6845d6", "path": "<Gamepad>/rightStickPress", "action": "DevWipeout", "groups": "Gamepad" },
         { "id": "ff7e4d4a-39da-4263-a72f-f89510c2f3bd", "path": "<Keyboard>/k", "action": "DevWipeout", "groups": "Keyboard" }

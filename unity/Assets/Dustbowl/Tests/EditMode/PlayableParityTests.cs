@@ -241,6 +241,29 @@ namespace Dustbowl.Tests
         }
 
         [Test]
+        public void FrontEndFlowIsWiredIntoTheNationalSceneWithTheEventCatalogue()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath);
+            GameObject[] roots = scene.GetRootGameObjects();
+            GameFlowController flow = roots.SelectMany(root => root.GetComponentsInChildren<GameFlowController>(true)).Single();
+            NationalRaceHud hud = roots.SelectMany(root => root.GetComponentsInChildren<NationalRaceHud>(true)).Single();
+            NationalRaceManager race = roots.SelectMany(root => root.GetComponentsInChildren<NationalRaceManager>(true)).Single();
+
+            Assert.That(hud.HasFlowController, Is.True, "HUD must draw the setup/pause/results plates for the flow controller.");
+            Assert.That(flow.Race, Is.SameAs(race));
+            Assert.That(flow.Screen, Is.EqualTo(GameFlowScreen.Setup), "Launch must land on the setup screen, not in the race.");
+            Assert.That(flow.QuitRequested, Is.False);
+
+            Assert.That(RaceEventCatalog.Count, Is.EqualTo(1));
+            RaceEventDefinition flats = flow.SelectedEvent;
+            Assert.That(flats.Id, Is.EqualTo(DustbowlFlatsNationalCourse.CourseId));
+            Assert.That(flats.Name, Is.EqualTo(DustbowlFlatsNationalCourse.CourseName));
+            Assert.That(flats.Laps, Is.EqualTo(race.TotalLaps));
+            Assert.That(flats.Riders, Is.EqualTo(race.TotalRiders));
+            Assert.That(RaceEventCatalog.Get(-1), Is.SameAs(flats), "Selection wraps so future rounds cycle with left/right.");
+        }
+
+        [Test]
         public void AllSevenAiCanCompleteTheNational()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath);

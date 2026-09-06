@@ -78811,6 +78811,7 @@ GameObject:
   - component: {fileID: 1641102157}
   - component: {fileID: 1641102154}
   - component: {fileID: 1641102156}
+  - component: {fileID: 1641102160}
   - component: {fileID: 1641102155}
   m_Layer: 0
   m_Name: RaceInfrastructure
@@ -78848,6 +78849,7 @@ MonoBehaviour:
   labelFont: {fileID: 12800000, guid: f88454c9a51ec72e60843969f6bd7125, type: 3}
   race: {fileID: 1641102156}
   player: {fileID: 501593568}
+  flow: {fileID: 1641102160}
 --- !u!114 &1641102156
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -78877,6 +78879,26 @@ MonoBehaviour:
   currentLapTime: 0
   bestLapTime: 0
   playerPosition: 1
+--- !u!114 &1641102160
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1641102153}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9b98d9cda4c44a2b91fd403876c2bf9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Dustbowl.Foundation::Dustbowl.Race.GameFlowController
+  race: {fileID: 1641102156}
+  player: {fileID: 501593568}
+  cameraModes: {fileID: 1641102154}
+  inputReader: {fileID: 1641102158}
+  followCamera: {fileID: 1035545506}
+  selectedEventIndex: 0
+  throttleMode: 0
+  screen: 0
 --- !u!114 &1641102157
 MonoBehaviour:
   m_ObjectHideFlags: 0

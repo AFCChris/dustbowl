@@ -12,7 +12,7 @@ namespace Dustbowl.Race
     /// Presentation only; it reads race and rider state and never writes it.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class NationalRaceHud : MonoBehaviour
+    public sealed partial class NationalRaceHud : MonoBehaviour
     {
         private const float DesignHeight = 900f;
         private const float PanelCut = 12f;
@@ -115,6 +115,13 @@ namespace Dustbowl.Race
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
             float width = Screen.width / scale;
             float height = Screen.height / scale;
+            UpdatePointer(scale);
+
+            if (flow != null && flow.Screen == GameFlowScreen.Setup)
+            {
+                DrawSetupScreen(width, height);
+                return;
+            }
 
             DrawRacePanel(new Rect(16f, 16f, 312f, 178f));
             DrawMinimapPanel(new Rect(width - 16f - MinimapPanelSize, 16f, MinimapPanelSize, MinimapPanelSize));
@@ -129,6 +136,11 @@ namespace Dustbowl.Race
             else if (race.State == NationalRaceState.Results)
             {
                 DrawResults(width, height);
+            }
+
+            if (flow != null && flow.IsPaused)
+            {
+                DrawPauseOverlay(width, height);
             }
         }
 
@@ -200,7 +212,7 @@ namespace Dustbowl.Race
             Color previous = GUI.color;
             GUI.color = new Color(1f, 1f, 1f, .62f);
             GUI.Label(rect,
-                "STEER  A/D · LEFT STICK      BRAKE  S · LT      AIR  R/F + Q/E · RIGHT STICK      CAMERA  C/V · RB/LB      RESET  BACKSPACE · Y",
+                "STEER  A/D · LEFT STICK      BRAKE  S · LT      AIR  R/F + Q/E · RIGHT STICK      CAMERA  C/V · RB/LB      RESET  BACKSPACE · Y      PAUSE  ESC · START",
                 label);
             GUI.color = previous;
         }
@@ -220,7 +232,7 @@ namespace Dustbowl.Race
             IReadOnlyList<string> results = race.BuildResults();
             IReadOnlyList<float> laps = race.PlayerLapTimes;
             float panelWidth = 560f;
-            float panelHeight = 318f + results.Count * 26f + laps.Count * 22f;
+            float panelHeight = 336f + results.Count * 26f + laps.Count * 22f;
             Rect panel = new((width - panelWidth) * .5f, (height - panelHeight) * .5f, panelWidth, panelHeight);
             DrawPanel(panel, new Color(Ink.r, Ink.g, Ink.b, .90f));
 
@@ -262,11 +274,7 @@ namespace Dustbowl.Race
                 y += 22f;
             }
 
-            Rect action = new(x, panel.y + panel.height - 62f, 236f, 42f);
-            DrawCutRect(action, Amber);
-            GUI.Label(action, "RACE AGAIN", Center(button, Ink));
-            GUI.Label(new Rect(action.xMax + 16f, action.y, inner - action.width - 16f, action.height),
-                "ENTER  ·  GAMEPAD A", Left(mono, LabelDim));
+            DrawResultsActions(new Rect(x, panel.y + panel.height - 80f, inner, 44f));
         }
 
         // ----------------------------------------------------------- minimap
@@ -647,6 +655,7 @@ namespace Dustbowl.Race
             countdown = Style(display, 190, TextAnchor.MiddleCenter, Amber);
             titleDisplay = Style(display, 74, TextAnchor.MiddleLeft, Sand);
             button = Style(display, 26, TextAnchor.MiddleCenter, Ink);
+            EnsureFrontEndStyles(display, monoFont);
 
             white = Solid(Color.white);
             cutTopRight = CornerCut(false);

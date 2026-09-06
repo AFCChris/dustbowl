@@ -98,7 +98,7 @@ identity. Manual throttle input is still mapped.
 | Reset | North face button | Backspace |
 | Next/previous camera | Right/left shoulder | `C` / `V` |
 | Switch tabletop/crest | Select | Tab |
-| Start/stop telemetry capture | Start | F9 |
+| Start/stop telemetry capture | Left-stick press | F9 |
 | Force development wipeout | Right-stick press | `K` |
 
 The development HUD identifies the active strip, motion state, speed, recent
@@ -107,7 +107,7 @@ climb rate, airtime, surface, last landing result, camera and telemetry state.
 ## Telemetry
 
 Telemetry is available only in the Editor or a Development Build. Starting a
-scenario begins a named in-memory capture. F9/Gamepad Start ends and saves the
+scenario begins a named in-memory capture. F9/Gamepad left-stick press ends and saves the
 current capture, or starts a new one when idle. JSON Lines files are written below
 `Application.persistentDataPath/DustbowlTelemetry`; the HUD shows the most recent
 path.

@@ -39,6 +39,18 @@ The third human review accepted the colour, lighting, sky and top-left HUD work 
 - **Dust root cause:** `NationalDust` was an opaque URP/Lit material with no texture, so every particle was a hard-edged, sun-lit solid square, and the systems had no fade, growth or rotation over lifetime; particles popped in and out and intersected the ground with sharp lines.
 - **Dust fix:** `NationalDust` is now `Universal Render Pipeline/Particles/Unlit`, alpha blended, with soft particles (`0.05–0.6 m` depth fade), camera fading (`0.35–1.6 m`) and a generated four-puff sprite sheet (`unity/Tools/generate-dust-sprite.js`). All eight `DustTrail` systems emit fewer, larger puffs (`0.55–1.15 m`, `0.9–1.7 s`) that fade in and out, grow `0.45× → 1.35×`, spin slowly, pick a random puff row, are slowed by velocity damping and billow with low-quality noise; `maxParticles` drops from `220` to `110` per bike. `BikePresentation` emits at `1.1 × speed` (cap `34/s`) and adds a single landing burst. Soft particles require the URP camera depth texture, which is now enabled; this is the only added render cost.
 
+## Front-end and race-loop pass (setup screen, throttle mode, race again, pause, quit)
+
+The fourth human review accepted presentation pass 2 and asked for the web shell's lightweight game flow instead of launching straight into the race. Terrain, lighting, minimap, dust, bike/rider presentation, controller constants, AI and lap rules are untouched; the changes are a flow state machine, a throttle-mode selector and menu plates.
+
+- **Flow:** `GameFlowController` (on `RaceInfrastructure`) owns `Setup → Race → Paused` and drives `NationalRaceManager`, which gained an `Idle` state (`HoldOnGrid()` parks the whole field with no clocks) alongside the existing `RestartRace()` countdown reset. On launch the scene shows the setup plate over the idling grid; DROP IN runs the normal countdown. The manager's own Enter/A polling was removed so all flow input lives in one place.
+- **Setup screen:** `NationalRaceHud.FrontEnd.cs` draws the web-style plate: National series eyebrow, DUSTBOWL title, course blurb, an event-card calendar fed by `RaceEventCatalog` (Dustbowl Flats only today; further rounds are additional catalogue entries), lap/rider/series facts, AUTO/MANUAL throttle selector with a one-line explanation of the active mode, CHASE/CLOSE/OVERHEAD camera selector, DROP IN and QUIT. The bike's own input is suspended (`DustbowlInputReader.SetSuspended`) while any menu is up so menu keys never double as bike input.
+- **Throttle mode:** `ArcadeBikeController.SetThrottleMode` overrides the tuning asset's `autoThrottle` default at runtime; the pre-existing throttle logic was extracted unchanged into `ArcadeBikeRules.ResolveThrottle` (AUTO drives at full throttle, any brake input cuts it while held, releasing the brake resumes; MANUAL uses the throttle axis only). The choice persists in `PlayerPrefs` (`dustbowl.throttle`) as the web build persists it in `localStorage`. No physics constant changed.
+- **Race again / return to menu:** results now have real RACE AGAIN, RETURN TO MENU and QUIT buttons (Enter/A, M/B, Q). Race Again calls the same field reset used at launch: player back to spawn with control disabled, all seven AI `ResetRider()`, lap tracker, lap times, best lap, race clock, position and results state cleared, camera re-snapped, then the normal 3-2-1-GO countdown. The previous results screen only drew a "RACE AGAIN" label and depended on Enter polled inside the race manager; the label was never clickable.
+- **Pause / quit:** Escape (or `P` / gamepad Start) during countdown or racing opens the pause overlay (RESUME, RESTART RACE, RETURN TO MENU, QUIT; Esc/Enter/Start, R/X, M/B, Q) and freezes the race through `Time.timeScale = 0` with bike input suspended; the flow restores the time scale on every exit path, including component disable. Escape on the results plate returns to the setup screen. Quit is `Application.Quit()` (stops play mode in the Editor) from the setup screen, the pause overlay and the results plate. Gamepad Start was previously bound to the development telemetry toggle; that binding moved to left-stick press.
+- **Mouse:** menu buttons are hit-tested against the Input System `Mouse` (with hover highlight) during the IMGUI repaint pass rather than relying on IMGUI mouse events, so clicking works under the project's Input-System-only handling. Every action also has a keyboard and gamepad shortcut shown beneath its button.
+- **Tests:** EditMode covers `ResolveThrottle` in both modes (brake suppression and resume), the controller's runtime override, and the scene wiring/catalogue; PlayMode drives launch-on-setup, throttle selection reaching the controller, start, pause freezing race time and AI, resume, three-lap finish, Race Again resetting player, AI, clocks and laps through a fresh countdown, and Return to Menu parking the field.
+
 ## Architecture
 
 - `DustbowlFlatsNationalCourse` deterministically rebuilds the web course's nine normalized layout points, Hermite centreline, seeded land height, nine-pass grade smoothing, twelve-pass bank smoothing, authored start rotation, section speed hints and all nine feature zones.
@@ -80,10 +92,13 @@ The earlier BehaviourLab scene and Stage 1–3 assets remain available as regres
 | Air whip/yaw | `Q` / `E` | right stick horizontal |
 | Next / previous camera | `C` / `V` | right / left shoulder |
 | Reset | Backspace | Y / north button |
-| Restart after results | Enter | A / south button |
-| Toggle telemetry capture | F9 | Start |
+| Setup screen: drop in / toggle throttle / cycle camera / select event / quit | Enter or Space / `T` / `C` `V` / arrows / `Q` | A or Start / Y / RB LB / D-pad / — |
+| Pause during countdown or race | Escape or `P` | Start |
+| Pause overlay: resume / restart / return to menu / quit | Escape or Enter / `R` / `M` / `Q` | Start or A / X / B / — |
+| Results: race again / return to menu / quit | Enter / `M` or Escape / `Q` | A or Start / B / — |
+| Toggle telemetry capture | F9 | left-stick press |
 
-Auto-throttle is enabled by the current reference tuning and releases only after GO. Braking suppresses auto-throttle.
+Throttle mode is chosen on the setup screen (AUTO by default, persisted between runs). AUTO releases only after GO and is suppressed while the brake is held; MANUAL uses the throttle input alone.
 
 ## Verification and build
 
@@ -110,7 +125,7 @@ Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity chec
 - The player retains the Stage 3 Unity controller's practical interpretation of the web constants. It is not claimed to have passed the feel gate merely because deterministic checks pass.
 - Unity opponents use a stable centreline/pace simulation rather than the web AI's near-player full controller, far-player analytical LOD, pairwise repulsion and off-track recovery. Their major-jump release is presentation-only at this milestone.
 - Landing remains the current short-contact/accepted/wipeout implementation. The future Clean/Sketchy/Ugly/Wipeout shared result is intentionally not smuggled into this redirected milestone.
-- The web's four-course event selector, title flow, pause/settings UI, generated engine audio and musical/chime hooks are not yet ported. This build opens directly into Dustbowl Flats; its functional minimap is now present.
+- The web's setup screen, throttle-mode choice, race-again/back-to-events flow and pause overlay are now ported in lightweight form. The event calendar lists Dustbowl Flats only; the other three web courses, settings UI, generated engine audio and musical/chime hooks are not yet ported.
 - Bikes, riders, vegetation, terrain materials and HUD are deliberately replaceable development art, not final production assets or animation.
 - There is no bike-to-bike collision authority. Positions come from race distance and riders may visually overlap.
 
@@ -118,7 +133,7 @@ Final verification on 2026-09-04 passed all Stage 1–3 and playable-parity chec
 
 - User play review is required for steering sign/authority, speed perception, jump readability, air correction, landing forgiveness, camera comfort and overall fun. Tests cannot approve these.
 - AI is race-functional but not production racing AI; overtaking, avoidance, collisions, recovery and jump physics need a later reviewed pass.
-- The player has no pause menu, settings screen, audio mix, controller glyph switching or accessibility options yet.
+- The pause overlay is minimal; there is no settings screen, audio mix, controller glyph switching or accessibility options yet.
 - Environment dressing is intentionally sparse and has no LOD or measured Steam Deck/mobile budget.
 - Crash presentation is the temporary deterministic tumble, not the final animation/ragdoll solution.
 - Only Dustbowl Flats is included in this Unity milestone.
