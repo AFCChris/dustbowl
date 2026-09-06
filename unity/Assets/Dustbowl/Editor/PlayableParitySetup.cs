@@ -39,6 +39,7 @@ namespace Dustbowl.Editor
         private const string PackedDirtTexturePath = Root + "/Art/Textures/DustbowlFlats_PackedDirt_Albedo.png";
         private const string DisplayFontPath = Root + "/Art/Fonts/BarlowCondensed-SemiBold.ttf";
         private const string LabelFontPath = Root + "/Art/Fonts/ShareTechMono-Regular.ttf";
+        private const string DustSheetPath = Root + "/Art/Textures/DustbowlFlats_DustPuff_Sheet.png";
         private const string UrpPostProcessDataPath =
             "Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset";
 
@@ -72,7 +73,7 @@ namespace Dustbowl.Editor
             Material dark = Material("NationalBikeDark", new Color(.025f, .03f, .035f), .38f);
             Material chrome = Material("NationalBikeMetal", new Color(.36f, .39f, .41f), .72f);
             Material skin = Material("NationalRiderSkin", new Color(.62f, .35f, .20f), .15f);
-            Material dust = Material("NationalDust", Hex(0xD99A52), 0f);
+            Material dust = DustMaterial();
 
             var surfaceObject = new GameObject("Authoritative_DustbowlFlats_Surface");
             surfaceObject.transform.SetParent(root.transform, false);
@@ -489,29 +490,127 @@ namespace Dustbowl.Editor
 
         private static ParticleSystem CreateDust(Transform parent, Material material)
         {
+            // Values mirror the checked-in scene; fewer, larger, soft-textured puffs
+            // that fade in and out, expand, tumble and billow instead of hard quads.
             var dust = new GameObject("DustTrail");
             dust.transform.SetParent(parent, false);
             dust.transform.localPosition = new Vector3(0f, -.32f, -.86f);
+            dust.transform.localRotation = Quaternion.Euler(-20f, 180f, 0f);
             ParticleSystem particles = dust.AddComponent<ParticleSystem>();
+
             ParticleSystem.MainModule main = particles.main;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(.35f, .8f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(.8f, 2.8f);
-            main.startSize = new ParticleSystem.MinMaxCurve(.18f, .58f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(.9f, 1.7f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.2f, 3.4f);
+            main.startSize = new ParticleSystem.MinMaxCurve(.55f, 1.15f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
             main.startColor = new ParticleSystem.MinMaxGradient(
-                new Color(.67f, .39f, .17f, .65f), new Color(.92f, .70f, .40f, .3f));
+                new Color(.79f, .63f, .44f), new Color(.90f, .80f, .64f));
+            main.gravityModifier = .05f;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 220;
+            main.maxParticles = 110;
+
             ParticleSystem.EmissionModule emission = particles.emission;
             emission.rateOverTime = 0f;
+
             ParticleSystem.ShapeModule shape = particles.shape;
             shape.shapeType = ParticleSystemShapeType.Cone;
-            shape.angle = 26f;
-            shape.radius = .14f;
-            dust.transform.localRotation = Quaternion.Euler(-20f, 180f, 0f);
+            shape.angle = 30f;
+            shape.radius = .22f;
+
+            ParticleSystem.SizeOverLifetimeModule size = particles.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, .45f, 0f, 2.2f),
+                new Keyframe(.35f, 1f, .9f, .55f),
+                new Keyframe(1f, 1.35f, .4f, 0f)));
+
+            ParticleSystem.ColorOverLifetimeModule color = particles.colorOverLifetime;
+            color.enabled = true;
+            var fade = new Gradient();
+            fade.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[]
+                {
+                    new GradientAlphaKey(0f, 0f), new GradientAlphaKey(.62f, .12f),
+                    new GradientAlphaKey(.45f, .55f), new GradientAlphaKey(0f, 1f)
+                });
+            color.color = new ParticleSystem.MinMaxGradient(fade);
+
+            ParticleSystem.RotationOverLifetimeModule rotation = particles.rotationOverLifetime;
+            rotation.enabled = true;
+            rotation.z = new ParticleSystem.MinMaxCurve(-.61f, .61f);
+
+            ParticleSystem.TextureSheetAnimationModule sheet = particles.textureSheetAnimation;
+            sheet.enabled = true;
+            sheet.numTilesX = 1;
+            sheet.numTilesY = 4;
+            sheet.animation = ParticleSystemAnimationType.SingleRow;
+            sheet.rowMode = ParticleSystemAnimationRowMode.Random;
+            sheet.frameOverTime = new ParticleSystem.MinMaxCurve(0f);
+
+            ParticleSystem.LimitVelocityOverLifetimeModule drag = particles.limitVelocityOverLifetime;
+            drag.enabled = true;
+            drag.limit = .8f;
+            drag.dampen = .25f;
+
+            ParticleSystem.NoiseModule noise = particles.noise;
+            noise.enabled = true;
+            noise.strength = .45f;
+            noise.frequency = .3f;
+            noise.scrollSpeed = .35f;
+            noise.quality = ParticleSystemNoiseQuality.Low;
+
             ParticleSystemRenderer renderer = dust.GetComponent<ParticleSystemRenderer>();
             renderer.sharedMaterial = material;
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sortMode = ParticleSystemSortMode.Distance;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
             return particles;
+        }
+
+        /// <summary>
+        /// Soft alpha-blended, unlit dust with soft-particle depth fade and camera
+        /// fade, using the generated four-puff sprite sheet.
+        /// </summary>
+        private static Material DustMaterial()
+        {
+            string path = $"{Root}/Materials/NationalDust.mat";
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(shader) { name = "NationalDust" };
+                AssetDatabase.CreateAsset(material, path);
+            }
+
+            material.shader = shader;
+            material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(DustSheetPath));
+            material.SetColor("_BaseColor", Color.white);
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.SetFloat("_ColorMode", 0f);
+            material.SetFloat("_SoftParticlesEnabled", 1f);
+            material.SetFloat("_SoftParticlesNearFadeDistance", .05f);
+            material.SetFloat("_SoftParticlesFarFadeDistance", .6f);
+            material.SetVector("_SoftParticleFadeParams", new Vector4(.05f, 1f / (.6f - .05f), 0f, 0f));
+            material.SetFloat("_CameraFadingEnabled", 1f);
+            material.SetFloat("_CameraNearFadeDistance", .35f);
+            material.SetFloat("_CameraFarFadeDistance", 1.6f);
+            material.SetVector("_CameraFadeParams", new Vector4(.35f, 1f / (1.6f - .35f), 0f, 0f));
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.EnableKeyword("_SOFTPARTICLES_ON");
+            material.EnableKeyword("_FADING_ON");
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.SetShaderPassEnabled("DepthOnly", false);
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            EditorUtility.SetDirty(material);
+            return material;
         }
 
         private static void CreateCamera(Transform parent, ArcadeBikeController player, CameraModeController modes)
@@ -628,6 +727,8 @@ namespace Dustbowl.Editor
                 pipeline.msaaSampleCount = 4;
                 pipeline.shadowDistance = 130f;
                 pipeline.shadowCascadeCount = 2;
+                // Soft particles read the camera depth texture.
+                pipeline.supportsCameraDepthTexture = true;
                 var serialized = new SerializedObject(pipeline);
                 SerializedProperty softShadows = serialized.FindProperty("m_SoftShadowsSupported");
                 if (softShadows != null)

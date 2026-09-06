@@ -14,6 +14,7 @@ namespace Dustbowl.Race
         [SerializeField] private ParticleSystem dust;
 
         private float wheelAngle;
+        private bool wasGrounded = true;
 
         public void Configure(
             ArcadeBikeController playerController,
@@ -64,9 +65,18 @@ namespace Dustbowl.Race
 
             if (dust != null)
             {
+                // Larger, longer-lived puffs need fewer emissions than the old hard quads.
                 ParticleSystem.EmissionModule emission = dust.emission;
-                emission.rateOverTime = grounded ? Mathf.Clamp(speed * 1.7f, 0f, 55f) : 0f;
+                emission.rateOverTime = grounded ? Mathf.Clamp(speed * 1.1f, 0f, 34f) : 0f;
+
+                // A landing kicks up one readable roost burst; purely visual.
+                if (grounded && !wasGrounded && speed > 4f)
+                {
+                    dust.Emit(Mathf.Clamp(Mathf.RoundToInt(speed * .9f), 6, 22));
+                }
             }
+
+            wasGrounded = grounded;
         }
     }
 }

@@ -136,6 +136,37 @@ namespace Dustbowl.Tests
         }
 
         [Test]
+        public void DustRoostUsesSoftTexturedTransparentParticlesOnAllEightBikes()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath);
+            ParticleSystem[] trails = scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<ParticleSystem>(true))
+                .Where(system => system.gameObject.name == "DustTrail")
+                .ToArray();
+            Assert.That(trails.Length, Is.EqualTo(8));
+
+            var pipeline = UnityEngine.Rendering.GraphicsSettings.defaultRenderPipeline
+                as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+            Assert.That(pipeline, Is.Not.Null);
+            Assert.That(pipeline.supportsCameraDepthTexture, Is.True, "Soft particles need the camera depth texture.");
+
+            foreach (ParticleSystem trail in trails)
+            {
+                Material material = trail.GetComponent<ParticleSystemRenderer>().sharedMaterial;
+                Assert.That(material.shader.name, Is.EqualTo("Universal Render Pipeline/Particles/Unlit"));
+                Assert.That(material.GetTexture("_BaseMap"), Is.Not.Null, "Dust needs the soft puff sprite sheet.");
+                Assert.That(material.GetFloat("_Surface"), Is.EqualTo(1f), "Dust must be alpha blended, not opaque.");
+                Assert.That(material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT"), Is.True);
+                Assert.That(material.IsKeywordEnabled("_SOFTPARTICLES_ON"), Is.True);
+                Assert.That(trail.colorOverLifetime.enabled, Is.True, "Puffs must fade in and out.");
+                Assert.That(trail.sizeOverLifetime.enabled, Is.True, "Puffs must expand as they thin.");
+                Assert.That(trail.textureSheetAnimation.enabled, Is.True);
+                Assert.That(trail.textureSheetAnimation.numTilesY, Is.EqualTo(4));
+                Assert.That(trail.main.maxParticles, Is.LessThanOrEqualTo(128), "Keep the per-bike particle budget modest.");
+            }
+        }
+
+        [Test]
         public void PresentationPassWiresSkyLightingPostProcessingTerrainTexturesAndHudFonts()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath);
